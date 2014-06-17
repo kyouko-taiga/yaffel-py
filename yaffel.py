@@ -37,7 +37,15 @@ class Function(object):
         else:
             return term
 
-class Set(object): pass
+class Set(object):
+
+    def __init__(self, function, context):
+        self.function = function
+        self.context = context
+
+    def __str__(self):
+        f = lambda c: '%s in %s' % (c[0], str(c[1]))
+        return '%s for %s' % (self.function, ', '.join(f(c) for c in self.context.items()))
 
 class Enumeration(Set):
 
@@ -64,7 +72,7 @@ def tokenize(s):
         ('space',    (r'[ \t\r\n]+',)),
         ('number',   (r'-?(0|([1-9][0-9]*))(\.[0-9]+)?([Ee][+-][0-9]+)?',)),
         ('string',   (r'"[^"]*"',)),                                # unsupported escaped quotes
-        ('operator', (r'(\*\*)|(and)|(or)|[{}\[\]\(\)\-\+\*/=><\.,:]',)),
+        ('operator', (r'(\*\*)|(and)|(or)|(in)|[{}\[\]\(\)\-\+\*/=><\.,:]',)),
         ('name',     (r'[A-Za-z_][A-Za-z_0-9]*',)),
     ]
 
@@ -128,6 +136,9 @@ def parse(seq):
     def make_range(x):
         return Range(eval_expr((x[0], x[2])), eval_expr((x[1], x[2])))
 
+    def make_set(x):
+        return Set(*x)
+
     # primitives
     op          = lambda s: a(Token('operator', s))
     op_         = lambda s: skip(op(s))
@@ -160,17 +171,21 @@ def parse(seq):
     binding     = with_forward_decls(lambda: name + op_('=') + evaluation >> (make_binding))
     context     = binding + many(op_(',') + binding) >> uncurry(make_context)
 
+    evaluable   = expression + maybe(kw_('for') + context) >> eval_expr
+    evaluation  = evaluable | (op_('(') + evaluable + op_(')'))
+
     enumeration = op_('{') + maybe(expression + many(op_(',') + expression)) \
                     + maybe(kw_('for') + context) + op_('}') >> make_enum
     range_      = op_('{') + expression + op_(':') + expression \
                     + maybe(kw_('for') + context) + op_('}') >> make_range
+    set_        = with_forward_decls(lambda: op_('{') + expression \
+                    + maybe(kw_('for') + set_context) + op_('}') >> make_set)
+    set_expr    = (enumeration | range_ | set_)
 
-    evaluable   = expression + maybe(kw_('for') + context) >> eval_expr
-    evaluation  = evaluable | (op_('(') + evaluable + op_(')'))
-    yaffel      = (evaluable | range_ | enumeration) + skip(finished)
-    #yaffel      = expression
+    set_binding = name + op_('in') + set_expr >> make_binding
+    set_context = set_binding + many(op_(',') + set_binding) >> uncurry(make_context)
 
-    #print(tokenize(seq))
+    yaffel      = (evaluable | set_expr) + skip(finished)
 
     # tokenize and parse the given sequence
     parsed = yaffel.parse(tokenize(seq))
