@@ -46,7 +46,7 @@ def tokenize(s):
         ('space',    (r'[ \t\r\n]+',)),
         ('number',   (r'-?(0|([1-9][0-9]*))(\.[0-9]+)?([Ee][+-][0-9]+)?',)),
         ('string',   (r'"[^"]*"',)),                                # unsupported escaped quotes
-        ('operator', (r'(\*\*)|[{}\[\]\(\)\-\+\*/=><\.,:]',)),
+        ('operator', (r'(\*\*)|(and)|(or)|[{}\[\]\(\)\-\+\*/=><\.,:]',)),
         ('name',     (r'[A-Za-z_][A-Za-z_0-9]*',)),
     ]
 
@@ -109,7 +109,9 @@ def parse(seq):
     sub         = op('-') >> const(operator.sub)
     mul         = op('*') >> const(operator.mul)
     div         = op('/') >> const(operator.truediv)
-    pow         = op('**') >> const(operator.pow)
+    power       = op('**') >> const(operator.pow)
+    and_        = op('and') >> const(operator.and_)
+    or_         = op('or') >> const(operator.or_)
 
     name        = token_type('name')
     number      = token_type('number') >> token_value >> make_number
@@ -118,11 +120,12 @@ def parse(seq):
     # grammar rules
     mul_op      = mul | div
     add_op      = add | sub
+    bin_op      = or_ | and_
 
     atom        = with_forward_decls(lambda: number | name | (op_('(') + expression + op_(')')))
-    factor      = atom + many(pow + atom) >> uncurry(make_function)
+    factor      = atom + many(power + atom) >> uncurry(make_function)
     term        = factor + many(mul_op + factor) >> uncurry(make_function)
-    expression  = term + many(add_op + term) >> uncurry(make_function)
+    expression  = term + many((add_op | bin_op) + term) >> uncurry(make_function)
 
     binding     = with_forward_decls(lambda: name + op_('=') + evaluable >> (make_binding))
     context     = binding + many(op_(',') + binding) >> uncurry(make_context)
