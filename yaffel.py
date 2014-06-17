@@ -13,13 +13,13 @@ class EvaluationError(Exception):
 
 class Function(object):
 
-    def __init__(self, fst, expr=None):
-        self.fst = fst
+    def __init__(self, head, expr=None):
+        self.head = head
         self.expr = expr
 
     def __call__(self, **context):
         # retrieve the first term value
-        a = self._value(self.fst, context)
+        a = self._value(self.head, context)
 
         # evaluate expression
         for f,b in self.expr:
@@ -36,6 +36,20 @@ class Function(object):
             return term(**context)
         else:
             return term
+
+    def __str__(self):
+        # helper function to get the string representation of a term
+        sym = lambda term: term.value if isinstance(term, Token) else str(term)
+
+        # if the expression is simple a constant
+        if not self.expr:
+            return sym(self.head)
+
+        ret = ''
+        a = sym(self.head)
+        for f,b in self.expr:
+            a = '%(f)s(%(a)s, %(b)s)' % {'f': f, 'a': a, 'b': sym(b)}
+        return a
 
 class Set(object):
 
