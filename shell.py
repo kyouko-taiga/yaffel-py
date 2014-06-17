@@ -18,7 +18,7 @@
 from yaffel import parse, EvaluationError
 from funcparserlib.parser import NoParseError
 
-import cmd
+import cmd, sys
 
 class Shell(cmd.Cmd):
     intro = 'Yaffel interpreter (version 0.1, June 2014), type Ctrl+D to exit'
@@ -32,10 +32,22 @@ class Shell(cmd.Cmd):
         try:
             t,v = parse(line)
             print('\033[93m[%s]\033[0m %s' % (t.__name__, v))
+            return 0
         except NoParseError as e:
             print('\033[91mSyntax error: %s\033[0m' %e)
         except EvaluationError as e:
             print('\033[91mError while evaluating "%s": %s\033[0m' % (line, e))
+        return -1
 
 if __name__ == '__main__':
+    shell = Shell()
+
+    # parse the command line input
+    if len(sys.argv) > 1 and sys.argv[1] == '-e':
+        try:
+            exit(shell.default(sys.argv[2]))
+        except IndexError:
+            print('\033[91musage: shell.py [-e expression]\033[0m') 
+            exit(-1)
+
     Shell().cmdloop()
