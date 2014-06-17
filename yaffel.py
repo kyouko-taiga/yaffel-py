@@ -160,10 +160,10 @@ def parse(seq):
     binding     = with_forward_decls(lambda: name + op_('=') + evaluation >> (make_binding))
     context     = binding + many(op_(',') + binding) >> uncurry(make_context)
 
-    enumeration = op_('{') + maybe(expression + many(op_(',') + expression)) + op_('}') \
-                    + maybe(kw_('for') + context) >> make_enum
-    range_      = op_('{') + expression + op_(':') + expression + op_('}') \
-                    + maybe(kw_('for') + context) >> make_range
+    enumeration = op_('{') + maybe(expression + many(op_(',') + expression)) \
+                    + maybe(kw_('for') + context) + op_('}') >> make_enum
+    range_      = op_('{') + expression + op_(':') + expression \
+                    + maybe(kw_('for') + context) + op_('}') >> make_range
 
     evaluable   = expression + maybe(kw_('for') + context) >> eval_expr
     evaluation  = evaluable | (op_('(') + evaluable + op_(')'))
