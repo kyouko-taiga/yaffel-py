@@ -14,7 +14,6 @@ class EvaluationError(Exception):
 class Function(object):
 
     def __init__(self, fst, expr=None):
-        # print(hex(id(self)))
         self.fst = fst
         self.expr = expr
 
@@ -37,6 +36,25 @@ class Function(object):
             return term(**context)
         else:
             return term
+
+class Set(object): pass
+
+class Enumeration(Set):
+
+    def __init__(self, *elements):
+        self.elements = set(elements)
+
+    def __str__(self):
+        return str(self.elements)
+
+class Range(Set):
+
+    def __init__(self, lower_bound, upper_bound):
+        self.lower_bound = lower_bound
+        self.upper_bound = upper_bound
+
+    def __str__(self):
+        return '{%s:%s}' % (self.lower_bound, self.upper_bound)
 
 def tokenize(s):
     regexps = {
@@ -98,6 +116,18 @@ def parse(seq):
             context[k] = v
         return context
 
+    def make_enum(x):
+        # check that the enumeration is not the empty set
+        if x[0] is not None:
+            e = {eval_expr((x[0], x[2]))} | {eval_expr((e, x[2])) for e in x[1]}
+            return Enumeration(*e)
+
+        # return the empty set
+        return Enumeration()
+
+    def make_range(x):
+        return Range(eval_expr((x[0], x[2])), eval_expr((x[1], x[2])))
+
     # primitives
     op          = lambda s: a(Token('operator', s))
     op_         = lambda s: skip(op(s))
@@ -127,11 +157,17 @@ def parse(seq):
     term        = factor + many(mul_op + factor) >> uncurry(make_function)
     expression  = term + many((add_op | bin_op) + term) >> uncurry(make_function)
 
-    binding     = with_forward_decls(lambda: name + op_('=') + evaluable >> (make_binding))
+    binding     = with_forward_decls(lambda: name + op_('=') + evaluation >> (make_binding))
     context     = binding + many(op_(',') + binding) >> uncurry(make_context)
 
+    enumeration = op_('{') + maybe(expression + many(op_(',') + expression)) + op_('}') \
+                    + maybe(kw_('for') + context) >> make_enum
+    range_      = op_('{') + expression + op_(':') + expression + op_('}') \
+                    + maybe(kw_('for') + context) >> make_range
+
     evaluable   = expression + maybe(kw_('for') + context) >> eval_expr
-    yaffel      = evaluable + skip(finished)
+    evaluation  = evaluable | (op_('(') + evaluable + op_(')'))
+    yaffel      = (evaluable | range_ | enumeration) + skip(finished)
     #yaffel      = expression
 
     #print(tokenize(seq))
