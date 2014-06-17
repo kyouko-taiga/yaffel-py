@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from yaffel import parse, EvaluationError
+from yaffel.parser import parse, EvaluationError
 from funcparserlib.parser import NoParseError
 
 import cmd, sys
@@ -39,7 +39,7 @@ class Shell(cmd.Cmd):
             print('\033[91mError while evaluating "%s": %s\033[0m' % (line, e))
         return -1
 
-if __name__ == '__main__':
+def main():
     shell = Shell()
 
     # parse the command line input
@@ -51,3 +51,6 @@ if __name__ == '__main__':
             exit(-1)
 
     Shell().cmdloop()
+
+if __name__ == '__main__':
+    main()
