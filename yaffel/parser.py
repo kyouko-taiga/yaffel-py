@@ -162,6 +162,15 @@ def parse(seq):
         return x[0]
 
     def make_function(head, tail):
+        # try to evaluate as a constant expression, if possible
+        # terms = [head] + [t for _,t in tail]
+        # if not any(isinstance(t, Token) or hasattr(t, '__call__') for t in terms):
+        #     return eval_cst_expr(head, tail)
+
+        # don't create an additional function if 'head' is the only term and is already callable
+        if not tail and hasattr(head, '__call__'):
+            return head
+
         # return a function that will take unbound variables as parameters
         return Function(head, tail)
 
