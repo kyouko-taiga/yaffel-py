@@ -49,7 +49,7 @@ class Function(object):
                 return context[term.value]
             except KeyError:
                 raise EvaluationError("unbound variable '%s'" % term.value) from None
-        elif isinstance(term, Function):
+        elif hasattr(term, '__call__'):
             return term(**context)
         else:
             return term
@@ -74,6 +74,9 @@ class Set(object):
         self.function = function
         self.context = context
 
+    def __call__(self, **context):
+        return Set(self.function, {k: v(**context) for k,v in self.context.items()})
+
     def __str__(self):
         f = lambda c: '%s in %s' % (c[0], str(c[1]))
         return '%s for %s' % (self.function, ', '.join(f(c) for c in self.context.items()))
@@ -82,6 +85,9 @@ class Enumeration(Set):
 
     def __init__(self, *elements):
         self.elements = set(elements)
+
+    def __call__(self, **context):
+        return Enumeration(*{e(**context) for e in self.elements})
 
     def __str__(self):
         return str(self.elements)
@@ -144,18 +150,16 @@ def parse(seq):
         return reduce(lambda s, p: p[0](s, p[1]), tail, head)
 
     def eval_expr(x):
-        try:
+        if hasattr(x[0], '__call__'):
             # Whenever an expression is parsed, an instance of Function is
             # created. Then, when we want to evaluate the result of the
             # expression for a given binding, this function will be called,
-            # using the bindings as the function parameters.
-            return x[0](**x[1])
-        except TypeError:
-            # If the expression is constant, then we don't need to provide
-            # any bindings.
-            return x[0]()
-            # if not hasattr(x[0], '__call__'):
-            #     return x[0]
+            # using the context bindings as the function parameters.
+            context = x[1] or {}
+            return x[0](**context)
+
+        # If the expression is constant, we don't need to evaluate it.
+        return x[0]
 
     def make_function(head, tail):
         # return a function that will take unbound variables as parameters
