@@ -30,9 +30,11 @@ class Shell(cmd.Cmd):
             print('\033[93m[%s]\033[0m %s' % (t.__name__, v))
             return 0
         except NoParseError as e:
-            print('\033[91mSyntax error: %s\033[0m' %e)
+            print('\033[91mSyntax error: %s\033[0m' % e)
         except EvaluationError as e:
-            print('\033[91mError while evaluating "%s": %s\033[0m' % (line, e))
+            print("\033[91mError while evaluating '%s': %s\033[0m" % (line, e))
+        except TypeError as e:
+            print('\033[91mType inconsistency: %s\033[0m' % e)
         return -1
 
     def default(self, line):
