@@ -29,12 +29,24 @@ class EvaluationError(Exception):
         Exception.__init__(self, message)
 
 class Function(object):
+    """Represents an expression as an anonymous function.
+
+    When parsed, yaffel expressions are recursively (actually the process is
+    performed bottom-up) decomposed into smaller lazy-evaluated expressions, or
+    anonymous functions, until no further decomposition is possible, i.e. when
+    when they are reduced to atomic primitives such as numbers, strings, etc.
+    """
 
     def __init__(self, head, expr=None):
         self.head = head
         self.expr = expr
 
     def __call__(self, **context):
+        """Evaluates the function value.
+
+        This method evaluates the function, using ``context`` to bind its free
+        variables, if present.
+        """
         # retrieve the first term value
         a = self._value(self.head, context)
 
@@ -72,6 +84,12 @@ class Function(object):
         return a
 
 class Set(object):
+    """Symbolic representation of a set.
+
+    Sets are represented symbolically as a tuple (f,u) where f is a function
+    and u another set. Let a set S be defined by (f,u), then elements of S are
+    given by {f(x) | x \in u}.
+    """
 
     def __init__(self, function, context):
         self.function = function
@@ -88,6 +106,7 @@ class Set(object):
         return '{%s for %s}' % (self.function, ', '.join(f(c) for c in self.context.items()))
 
 class Enumeration(Set):
+    """Kind of set that simply enumerates values."""
 
     def __init__(self, *elements):
         self.elements = set(elements)
@@ -102,6 +121,7 @@ class Enumeration(Set):
         return '{%s}' % ', '.join(str(e) for e in self.elements)
 
 class Range(Set):
+    """Numeric set that contains values from its lower to its upper bound."""
 
     def __init__(self, lower_bound, upper_bound):
         self.lower_bound = lower_bound
