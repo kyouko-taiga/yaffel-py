@@ -54,6 +54,9 @@ class Function(object):
         else:
             return term
 
+    def __repr__(self):
+        return '%s(%s)' % (self.__class__, str(self))
+
     def __str__(self):
         # helper function to get the string representation of a term
         sym = lambda term: term.value if isinstance(term, Token) else str(term)
@@ -77,9 +80,12 @@ class Set(object):
     def __call__(self, **context):
         return Set(self.function, {k: v(**context) for k,v in self.context.items()})
 
+    def __repr__(self):
+        return '%s(%s)' % (self.__class__, str(self))
+
     def __str__(self):
         f = lambda c: '%s in %s' % (c[0], str(c[1]))
-        return '%s for %s' % (self.function, ', '.join(f(c) for c in self.context.items()))
+        return '{%s for %s}' % (self.function, ', '.join(f(c) for c in self.context.items()))
 
 class Enumeration(Set):
 
@@ -89,8 +95,11 @@ class Enumeration(Set):
     def __call__(self, **context):
         return Enumeration(*{e(**context) for e in self.elements})
 
+    def __repr__(self):
+        return '%s(%s)' % (self.__class__, str(self))
+
     def __str__(self):
-        return str(self.elements)
+        return '{%s}' % ', '.join(str(e) for e in self.elements)
 
 class Range(Set):
 
