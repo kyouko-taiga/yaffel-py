@@ -24,11 +24,7 @@ class Shell(cmd.Cmd):
     intro = 'Yaffel interpreter (version 0.1, June 2014), type Ctrl+D to exit'
     prompt = 'yaffel$ '
 
-    def default(self, line):
-        if line == 'EOF':
-            print('')
-            exit(0)
-
+    def parse(self, line):
         try:
             t,v = parse(line)
             print('\033[93m[%s]\033[0m %s' % (t.__name__, v))
@@ -38,6 +34,12 @@ class Shell(cmd.Cmd):
         except EvaluationError as e:
             print('\033[91mError while evaluating "%s": %s\033[0m' % (line, e))
         return -1
+
+    def default(self, line):
+        if line == 'EOF':
+            print('')
+            exit(0)
+        self.parse(line)
 
 def main():
     shell = Shell()
