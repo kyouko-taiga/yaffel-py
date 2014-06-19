@@ -20,7 +20,7 @@ from funcparserlib.lexer import make_tokenizer, Token, LexerError
 from funcparserlib.parser import some, a, many, maybe, finished, skip, with_forward_decls
 from functools import reduce
 
-import sys, operator
+import numbers, operator, sys
 
 keywords = ['for', 'in', 'not in']
 
@@ -92,8 +92,24 @@ class Range(Set):
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
 
+    def __call__(self, **context):
+        # evaluate lower and upper bounds
+        lower = self.lower_bound(**context)
+        upper = self.upper_bound(**context)
+
+        # check type consistency
+        if not isinstance(lower, numbers.Real) or not isinstance(upper, numbers.Real):
+            raise TypeError('range defined for non-numeric lower or upper bounds')
+        if not lower < upper:
+            raise TypeError('range defined with unordered bounds')
+
+        return Range(lower, upper)
+
+    def __repr__(self):
+        return '%s(%s)' % (self.__class__, str(self))
+
     def __str__(self):
-        return '{%s:%s}' % (self.lower_bound, self.upper_bound)
+        return '{%s:%s}' % (repr(self.lower_bound), self.upper_bound)
 
 def tokenize(s):
     regexps = {
@@ -157,15 +173,15 @@ def parse(seq):
 
     def make_enum(x):
         # check that the enumeration is not the empty set
-        if x[0] is not None:
-            e = {eval_expr((x[0], x[2]))} | {eval_expr((e, x[2])) for e in x[1]}
+        if x is not None:
+            e = {x[0]} | {e for e in x[1]}
             return Enumeration(*e)
 
         # return the empty set
         return Enumeration()
 
     def make_range(x):
-        return Range(eval_expr((x[0], x[2])), eval_expr((x[1], x[2])))
+        return Range(x[0],x[1])
 
     def make_set(x):
         return Set(*x)
@@ -194,29 +210,28 @@ def parse(seq):
     add_op      = add | sub
     bin_op      = or_ | and_
 
-    atom        = with_forward_decls(lambda: number | name | (op_('(') + expression + op_(')')))
+    atom        = with_forward_decls(lambda:
+                    number | name | set_expr | (op_('(') + expr + op_(')')))
     factor      = atom + many(power + atom) >> uncurry(make_function)
     term        = factor + many(mul_op + factor) >> uncurry(make_function)
-    expression  = term + many((add_op | bin_op) + term) >> uncurry(make_function)
+    expr        = term + many((add_op | bin_op) + term) >> uncurry(make_function)
 
     binding     = with_forward_decls(lambda: name + op_('=') + evaluation >> (make_binding))
     context     = binding + many(op_(',') + binding) >> uncurry(make_context)
 
-    evaluable   = expression + maybe(kw_('for') + context) >> eval_expr
+    evaluable   = expr + maybe(kw_('for') + context) >> eval_expr
     evaluation  = evaluable | (op_('(') + evaluable + op_(')'))
 
-    enumeration = op_('{') + maybe(expression + many(op_(',') + expression)) \
-                    + maybe(kw_('for') + context) + op_('}') >> make_enum
-    range_      = op_('{') + expression + op_(':') + expression \
-                    + maybe(kw_('for') + context) + op_('}') >> make_range
-    set_        = with_forward_decls(lambda: op_('{') + expression \
-                    + maybe(kw_('for') + set_context) + op_('}') >> make_set)
+    enumeration = op_('{') + maybe(expr + many(op_(',') + expr)) + op_('}') >> make_enum
+    range_      = op_('{') + expr + op_(':') + expr  + op_('}') >> make_range
+    set_        = with_forward_decls(lambda:
+                    op_('{') + expr + maybe(kw_('for') + set_context) + op_('}') >> make_set)
     set_expr    = (enumeration | range_ | set_)
 
     set_binding = name + op_('in') + set_expr >> make_binding
     set_context = set_binding + many(op_(',') + set_binding) >> uncurry(make_context)
 
-    yaffel      = (evaluable | set_expr) + skip(finished)
+    yaffel      = evaluable + skip(finished)
 
     # tokenize and parse the given sequence
     parsed = yaffel.parse(tokenize(seq))
