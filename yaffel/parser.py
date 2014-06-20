@@ -20,7 +20,7 @@ from funcparserlib.lexer import make_tokenizer, Token, LexerError
 from funcparserlib.parser import some, a, many, maybe, finished, skip, with_forward_decls
 from functools import reduce
 
-import numbers, operator, sys
+import numbers, importlib, operator, sys
 
 keywords = ['for', 'in', 'not in']
 
@@ -28,7 +28,7 @@ class EvaluationError(Exception):
     def __init__(self, message):
         Exception.__init__(self, message)
 
-class Function(object):
+class Expression(object):
     """Represents an expression as an anonymous function.
 
     When parsed, yaffel expressions are recursively (actually the process is
@@ -42,10 +42,10 @@ class Function(object):
         self.expr = expr
 
     def __call__(self, **context):
-        """Evaluates the function value.
+        """Evaluates the expression value.
 
-        This method evaluates the function, using ``context`` to bind its free
-        variables, if present.
+        This method evaluates the expression, using ``context`` to bind its
+        free variables, if such are present.
         """
         # retrieve the first term value
         a = self._value(self.head, context)
@@ -82,6 +82,39 @@ class Function(object):
         for f,b in self.expr:
             a = '%(f)s(%(a)s, %(b)s)' % {'f': f, 'a': a, 'b': sym(b)}
         return a
+
+class LazyFunction(Expression):
+
+    def __init__(self, name, args):
+        self.name = name
+        self.args = args
+
+    def __call__(self, **context):
+        try:
+            # first try to get `name` from the context
+            fx = context[self.name]
+        except KeyError:
+            # if `name` can't be bound from the context, try to use a built-in
+            fx = None
+            for mod in ('builtins', 'math',):
+                fx = getattr(importlib.import_module(mod), self.name, None)
+                if fx: break
+
+        # raise an evaluation error if `name` couldn't be bound
+        if not fx:
+            raise EvaluationError("unbound variable '%s'" % self.name)
+
+        # apply fx
+        # TODO instanciate yaffel sets as python iterable so we can call python
+        #  built-in functions than run on tierables, such as `sum`
+        return fx(*(self._value(a, context) for a in self.args))
+
+
+    def __repr__(self):
+        return '%s(%s)' % (self.__class__, str(self))
+
+    def __str__(self):
+        return '%s(%s)' % (self.name, ', '.join(map(str, self.args)))
 
 class Set(object):
     """Symbolic representation of a set.
@@ -180,7 +213,7 @@ def parse(seq):
 
     def eval_expr(x):
         if hasattr(x[0], '__call__'):
-            # Whenever an expression is parsed, an instance of Function is
+            # Whenever an expression is parsed, an instance of Expression is
             # created. Then, when we want to evaluate the result of the
             # expression for a given binding, this function will be called,
             # using the context bindings as the function parameters.
@@ -190,7 +223,7 @@ def parse(seq):
         # If the expression is constant, we don't need to evaluate it.
         return x[0]
 
-    def make_function(head, tail):
+    def make_expression(head, tail):
         # try to evaluate as a constant expression, if possible
         # terms = [head] + [t for _,t in tail]
         # if not any(isinstance(t, Token) or hasattr(t, '__call__') for t in terms):
@@ -201,7 +234,7 @@ def parse(seq):
             return head
 
         # return a function that will take unbound variables as parameters
-        return Function(head, tail)
+        return Expression(head, tail)
 
     def make_binding(t):
         return (token_value(t[0]), t[1])
@@ -228,6 +261,14 @@ def parse(seq):
     def make_set(x):
         return Set(*x)
 
+    def make_tuple(x):
+        if x is not None:
+            return tuple([x[0]] + [e for e in x[1]])
+        return tuple()
+
+    def make_lazy_function(x):
+        return LazyFunction(token_value(x[0]), x[1])
+
     # primitives
     op          = lambda s: a(Token('operator', s))
     op_         = lambda s: skip(op(s))
@@ -253,10 +294,10 @@ def parse(seq):
     bin_op      = or_ | and_
 
     atom        = with_forward_decls(lambda:
-                    number | name | set_expr | (op_('(') + expr + op_(')')))
-    factor      = atom + many(power + atom) >> uncurry(make_function)
-    term        = factor + many(mul_op + factor) >> uncurry(make_function)
-    expr        = term + many((add_op | bin_op) + term) >> uncurry(make_function)
+                    fx_ins | number | name | set_expr | (op_('(') + expr + op_(')')))
+    factor      = atom + many(power + atom) >> uncurry(make_expression)
+    term        = factor + many(mul_op + factor) >> uncurry(make_expression)
+    expr        = term + many((add_op | bin_op) + term) >> uncurry(make_expression)
 
     binding     = with_forward_decls(lambda: name + op_('=') + evaluation >> (make_binding))
     context     = binding + many(op_(',') + binding) >> uncurry(make_context)
@@ -273,7 +314,11 @@ def parse(seq):
     set_binding = name + op_('in') + set_expr >> make_binding
     set_context = set_binding + many(op_(',') + set_binding) >> uncurry(make_context)
 
+    tuple_      = op_('(') + maybe(expr + many(op_(',') + expr)) + op_(')') >> make_tuple
+    fx_ins      = name + tuple_ >> make_lazy_function
+
     yaffel      = evaluable + skip(finished)
+    #yaffel      = fx_ins
 
     # tokenize and parse the given sequence
     parsed = yaffel.parse(tokenize(seq))
