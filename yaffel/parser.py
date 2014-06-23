@@ -83,38 +83,64 @@ class Expression(object):
             a = '%(f)s(%(a)s, %(b)s)' % {'f': f, 'a': a, 'b': sym(b)}
         return a
 
+class AnonymousFunction(Expression):
+
+    def __init__(self, args, expr):
+        self.args = args
+        self.expr = expr
+
+    def __call__(self, *argv) :
+        if len(argv) != len(self.args):
+            raise TypeError("%s takes %i arguments but %i were given" %
+                            (self, len(self.args), len(argv)))
+        context = {self.args[i]: argv[i] for i in range(len(self.args))}
+        return self.expr(**context)
+
+    def __str__(self):
+        return '%(args)s: %(expr)s' % {
+            'args': 'f ' + ', '.join(self.args),
+            'expr': str(self.expr)
+        }
+
 class Application(Expression):
 
-    def __init__(self, name, args):
-        self.name = name
+    def __init__(self, function, args):
+        self.function = function
         self.args = args
 
     def __call__(self, **context):
-        try:
-            # first try to get `name` from the context
-            fx = context[self.name]
-        except KeyError:
-            # if `name` can't be bound from the context, try to use a built-in
-            fx = None
-            for mod in ('builtins', 'math',):
-                fx = getattr(importlib.import_module(mod), self.name, None)
-                if fx: break
+        if isinstance(self.function, Token):
+            # `function` is symbol, we need to bound it to an actual function
+            fx_name = self.function.value
+            try:
+                # first try to get `function` from the context
+                fx = context[fx_name]
+            except KeyError:
+                # if `function` can't be bound from the context, try to use a built-in
+                fx = None
+                for mod in ('builtins', 'math',):
+                    fx = getattr(importlib.import_module(mod), fx_name, None)
+                    if fx: break
 
-        # raise an evaluation error if `name` couldn't be bound
-        if not fx:
-            raise EvaluationError("unbound variable '%s'" % self.name)
+            # raise an evaluation error if `name` couldn't be bound
+            if not fx:
+                raise EvaluationError("unbound function name '%s'" % fx_name)
+
+        elif isinstance(self.function, AnonymousFunction):
+            # `function` is an anonymous function
+            fx = self.function
+
+        else:
+            raise TypeError("invalid type '%s' for a function application" %
+                            type(self.function).__name__)
 
         # apply fx
         # TODO instanciate yaffel sets as python iterable so we can call python
         #  built-in functions than run on tierables, such as `sum`
         return fx(*(self._value(a, context) for a in self.args))
 
-
-    def __repr__(self):
-        return '%s(%s)' % (self.__class__, str(self))
-
     def __str__(self):
-        return '%s(%s)' % (self.name, ', '.join(map(str, self.args)))
+        return '%s(%s)' % (self.function, ', '.join(map(str, self.args)))
 
 class Set(object):
     """Symbolic representation of a set.
@@ -267,7 +293,12 @@ def parse(seq):
         return tuple()
 
     def make_application(x):
-        return Application(token_value(x[0]), x[1])
+        return Application(x[0], x[1])
+
+    def make_function(x):
+        args = [token_value(t) for t in [x[0]] + [a for a in x[1]]]
+        expr = x[2]
+        return AnonymousFunction(args, expr)
 
     # primitives
     op          = lambda s: a(Token('operator', s))
@@ -294,16 +325,18 @@ def parse(seq):
     bin_op      = or_ | and_
 
     atom        = with_forward_decls(lambda:
-                    fx_ins | number | name | set_expr | (op_('(') + expr + op_(')')))
+                    fx_app | number | name | set_expr | (op_('(') + expr + op_(')')))
     factor      = atom + many(power + atom) >> uncurry(make_expression)
     term        = factor + many(mul_op + factor) >> uncurry(make_expression)
     expr        = term + many((add_op | bin_op) + term) >> uncurry(make_expression)
+
+    fx_anon     = kw_('f') + maybe(name + many(op_(',') + name)) + op_(':') + expr >> make_function
 
     binding     = with_forward_decls(lambda: name + op_('=') + evaluation >> (make_binding))
     context     = binding + many(op_(',') + binding) >> uncurry(make_context)
 
     evaluable   = expr + maybe(kw_('for') + context) >> eval_expr
-    evaluation  = evaluable | (op_('(') + evaluable + op_(')'))
+    evaluation  = (fx_anon | evaluable) | (op_('(') + (fx_anon | evaluable) + op_(')'))
 
     enumeration = op_('{') + maybe(expr + many(op_(',') + expr)) + op_('}') >> make_enum
     range_      = op_('{') + expr + op_(':') + expr  + op_('}') >> make_range
@@ -315,10 +348,10 @@ def parse(seq):
     set_context = set_binding + many(op_(',') + set_binding) >> uncurry(make_context)
 
     tuple_      = op_('(') + maybe(expr + many(op_(',') + expr)) + op_(')') >> make_tuple
-    fx_ins      = name + tuple_ >> make_application
+    fx_app      = (op_('(') + fx_anon + op_(')') | name) + tuple_ >> make_application
 
     yaffel      = evaluable + skip(finished)
-    #yaffel      = fx_ins
+    # yaffel      = fx_anon
 
     # tokenize and parse the given sequence
     parsed = yaffel.parse(tokenize(seq))
