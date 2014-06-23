@@ -35,6 +35,8 @@ class Shell(cmd.Cmd):
             print("\033[91mError while evaluating '%s': %s\033[0m" % (line, e))
         except TypeError as e:
             print('\033[91mType inconsistency: %s\033[0m' % e)
+        except ZeroDivisionError as e:
+            print('\033[91mIllegal operation: Division by zero\033[0m')
         return -1
 
     def default(self, line):
