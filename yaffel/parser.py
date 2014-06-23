@@ -20,7 +20,7 @@ from funcparserlib.lexer import make_tokenizer, Token, LexerError
 from funcparserlib.parser import some, a, many, maybe, finished, skip, with_forward_decls
 from functools import reduce
 
-from yaffel.types import *
+from yaffel.datatypes import *
 
 import operator, sys
 

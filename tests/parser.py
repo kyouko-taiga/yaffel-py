@@ -17,7 +17,7 @@
 
 import math, unittest
 from yaffel.parser import parse
-from yaffel.types import *
+from yaffel.datatypes import *
 
 class TestParser(unittest.TestCase):
 
