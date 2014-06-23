@@ -15,7 +15,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from yaffel.parser import parse, EvaluationError
+from yaffel.parser import parse
+from yaffel.exceptions import EvaluationError
 from funcparserlib.parser import NoParseError
 
 import cmd, sys

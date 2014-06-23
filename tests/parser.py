@@ -16,8 +16,10 @@
 # limitations under the License.
 
 import math, unittest
-from yaffel.parser import parse
+
 from yaffel.datatypes import *
+from yaffel.exceptions import *
+from yaffel.parser import parse
 
 class TestParser(unittest.TestCase):
 

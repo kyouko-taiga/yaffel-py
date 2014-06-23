@@ -16,14 +16,12 @@
 # limitations under the License.
 
 from funcparserlib.lexer import Token
+from yaffel.exceptions import UnboundVariableError, InvalidExpressionError
+
 import numbers, importlib
 
-__all__ = ['EvaluationError', 'Expression', 'AnonymousFunction', 'Application', 'Set',
-           'Enumeration', 'Range']
+__all__ = ['Expression', 'AnonymousFunction', 'Application', 'Set', 'Enumeration', 'Range']
 
-class EvaluationError(Exception):
-    def __init__(self, message):
-        Exception.__init__(self, message)
 
 class Expression(object):
     """Represents an expression as an anonymous function.
