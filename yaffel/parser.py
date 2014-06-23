@@ -66,6 +66,16 @@ class Expression(object):
         else:
             return term
 
+    def __hash__(self):
+        return hash((self.head, tuple(e for e in self.expr)))
+
+    def __eq__(self, other):
+        try:
+            compare_seq = lambda x,y: all(x[i] == y[i] for i in range(max(len(x), len(y))))
+            return (self.head == other.head) and compare_seq(self.expr, other.expr)
+        except:
+            return False
+
     def __repr__(self):
         return '%s(%s)' % (self.__class__, str(self))
 
@@ -95,6 +105,16 @@ class AnonymousFunction(Expression):
                             (self, len(self.args), len(argv)))
         context = {self.args[i]: argv[i] for i in range(len(self.args))}
         return self.expr(**context)
+
+    def __hash__(self):
+        return hash((tuple(self.args), tuple(self.expr)))
+
+    def __eq__(self, other):
+        try:
+            compare_seq = lambda x,y: all(x[i] == y[i] for i in range(max(len(x), len(y))))
+            return compare_seq(self.args, other.args) and compare_seq(self.expr, other.expr)
+        except:
+            return False
 
     def __str__(self):
         return '%(args)s: %(expr)s' % {
@@ -139,6 +159,16 @@ class Application(Expression):
         #  built-in functions than run on tierables, such as `sum`
         return fx(*(self._value(a, context) for a in self.args))
 
+    def __hash__(self):
+        return hash(self.function, tuple(self.args))
+
+    def __eq__(self, other):
+        try:
+            compare_seq = lambda x,y: all(x[i] == y[i] for i in range(max(len(x), len(y))))
+            return (self.function, other.function) and compare_seq(self.args, other.args)
+        except:
+            return False
+
     def __str__(self):
         return '%s(%s)' % (self.function, ', '.join(map(str, self.args)))
 
@@ -157,6 +187,9 @@ class Set(object):
     def __call__(self, **context):
         return Set(self.function, {k: v(**context) for k,v in self.context.items()})
 
+    def __eq__(self, other):
+        return (self.function, other.function) and (self.context == other.context)
+
     def __repr__(self):
         return '%s(%s)' % (self.__class__, str(self))
 
@@ -172,6 +205,9 @@ class Enumeration(Set):
 
     def __call__(self, **context):
         return Enumeration(*{e(**context) for e in self.elements})
+
+    def __eq__(self, other):
+        return self.elements == other.elements
 
     def __repr__(self):
         return '%s(%s)' % (self.__class__, str(self))
@@ -198,6 +234,9 @@ class Range(Set):
             raise TypeError('range defined with unordered bounds')
 
         return Range(lower, upper)
+
+    def __eq__(self, other):
+        return (self.lower_bound == other.lower_bound) and (self.upper_bound == other.upper_bound)
 
     def __repr__(self):
         return '%s(%s)' % (self.__class__, str(self))
