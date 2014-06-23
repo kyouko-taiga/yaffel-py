@@ -81,7 +81,7 @@ def parse(seq):
             return head
 
         # return a function that will take unbound variables as parameters
-        return Expression(head, tail)
+        return Expression([head] + tail)
 
     def make_binding(t):
         return (token_value(t[0]), t[1])
@@ -169,7 +169,7 @@ def parse(seq):
     set_context = set_binding + many(op_(',') + set_binding) >> uncurry(make_context)
 
     tuple_      = op_('(') + maybe(expr + many(op_(',') + expr)) + op_(')') >> make_tuple
-    fx_app      = (op_('(') + fx_anon + op_(')') | name) + tuple_ >> make_application
+    fx_app      = (op_('(') + fx_anon + op_(')') | name >> token_value) + tuple_ >> make_application
 
     yaffel      = evaluable + skip(finished)
     # yaffel      = fx_anon

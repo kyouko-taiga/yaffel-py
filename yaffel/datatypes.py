@@ -16,12 +16,23 @@
 # limitations under the License.
 
 from funcparserlib.lexer import Token
+from itertools import zip_longest
 from yaffel.exceptions import UnboundVariableError, InvalidExpressionError
 
 import numbers, importlib
 
 __all__ = ['Expression', 'AnonymousFunction', 'Application', 'Set', 'Enumeration', 'Range']
 
+def value_of(variable, context):
+    if isinstance(variable, Expression):
+        # `variable` is an instance of Expression, we simply evaluate it
+        return variable(**context)
+
+    try:
+        # we try to bound `variable` from the `context`
+        return context[variable]
+    except KeyError:
+        raise UnboundVariableError("unbound variable '%s'" % variable) from None
 
 class Expression(object):
     """Represents an expression as an anonymous function.
@@ -32,9 +43,12 @@ class Expression(object):
     when they are reduced to atomic primitives such as numbers, strings, etc.
     """
 
-    def __init__(self, head, expr=None):
-        self.head = head
-        self.expr = expr
+    def __init__(self, unfolded_expr):
+        # The unfolded expression E' of an expression E is a sequence
+        # [t1, (f1, t2), (f2, t3), ...] starting with a term followed
+        # unfolded_expr arbitrary number of tuples (operator, term),
+        # such that E = f1(t1, f2(t2, ...)).
+        self._unfolded_expr = unfolded_expr
 
     def __call__(self, **context):
         """Evaluates the expression value.
@@ -42,11 +56,16 @@ class Expression(object):
         This method evaluates the expression, using ``context`` to bind its
         free variables, if such are present.
         """
-        # retrieve the first term value
-        a = self._value(self.head, context)
+        try:
+            # retrieve the first term value
+            a = self._value(self._unfolded_expr[0], context)
+        except TypeError:
+            # `_unfolded_expr` is either [] or not iterable
+            raise InvalidExpressionError("'%s' is not a valid expression" %
+                                         self._unfolded_expr) from None
 
         # evaluate expression
-        for f,b in self.expr:
+        for f,b in self._unfolded_expr[1:]:
             a = f(a, self._value(b, context))
         return a
 
@@ -55,117 +74,113 @@ class Expression(object):
             try:
                 return context[term.value]
             except KeyError:
-                raise EvaluationError("unbound variable '%s'" % term.value) from None
+                raise UnboundVariableError("unbound variable '%s'" % term.value) from None
         elif hasattr(term, '__call__'):
             return term(**context)
         else:
             return term
 
-    def __hash__(self):
-        return hash((self.head, tuple(e for e in self.expr)))
-
-    def __eq__(self, other):
-        try:
-            compare_seq = lambda x,y: all(x[i] == y[i] for i in range(max(len(x), len(y))))
-            return (self.head == other.head) and compare_seq(self.expr, other.expr)
-        except:
-            return False
-
-    def __repr__(self):
-        return '%s(%s)' % (self.__class__, str(self))
-
-    def __str__(self):
+    def _unfolded_expr_str(self):
+        if not self._unfolded_expr: return ''
+    
         # helper function to get the string representation of a term
         sym = lambda term: term.value if isinstance(term, Token) else str(term)
 
         # if the expression is simple a constant
-        if not self.expr:
-            return sym(self.head)
+        a = sym(self._unfolded_expr[0])
+        if len(self._unfolded_expr) <= 1:
+            return a
 
         ret = ''
-        a = sym(self.head)
-        for f,b in self.expr:
+        for f,b in self._unfolded_expr[1:]:
             a = '%(f)s(%(a)s, %(b)s)' % {'f': f, 'a': a, 'b': sym(b)}
-        return a
+        return a        
+
+    def __hash__(self):
+        if self._unfolded_expr is None:
+            return 0
+        return hash(tuple(self._unfolded_expr))
+
+    def __eq__(self, other):
+        return all(a == b for a,b in zip_longest(self.unfolded_expr, other.unfolded_expr))
+
+    def __str__(self):
+        return self._unfolded_expr_str()
+
+    def __repr__(self):
+        return '%s(%s)' % (self.__class__, str(self))
 
 class AnonymousFunction(Expression):
 
     def __init__(self, args, expr):
-        self.args = args
-        self.expr = expr
+        self._args = args
+        super().__init__(expr._unfolded_expr)
 
     def __call__(self, *argv) :
-        if len(argv) != len(self.args):
+        if len(argv) != len(self._args):
             raise TypeError("%s takes %i arguments but %i were given" %
-                            (self, len(self.args), len(argv)))
-        context = {self.args[i]: argv[i] for i in range(len(self.args))}
-        return self.expr(**context)
+                            (self, len(self._args), len(argv)))
+        context = {self._args[i]: argv[i] for i in range(len(self._args))}
+        return super().__call__(**context)
 
     def __hash__(self):
-        return hash((tuple(self.args), tuple(self.expr)))
+        return hash(tuple(self._args + [super().__hash__()]))
 
     def __eq__(self, other):
-        try:
-            compare_seq = lambda x,y: all(x[i] == y[i] for i in range(max(len(x), len(y))))
-            return compare_seq(self.args, other.args) and compare_seq(self.expr, other.expr)
-        except:
-            return False
+        f = lambda x,y: all(a == b for a,b in zip_longest(x,y))
+        return f(self._args, other._args) and f(self._unfolded_expr, other._unfolded_expr)
 
     def __str__(self):
         return '%(args)s: %(expr)s' % {
-            'args': 'f ' + ', '.join(self.args),
-            'expr': str(self.expr)
+            'args': 'f ' + ', '.join(self._args),
+            'expr': self._unfolded_expr_str()
         }
 
-class Application(Expression):
+class Application(object):
 
     def __init__(self, function, args):
-        self.function = function
-        self.args = args
+        self._function = function
+        self._args = args
 
     def __call__(self, **context):
-        if isinstance(self.function, Token):
-            # `function` is symbol, we need to bound it to an actual function
-            fx_name = self.function.value
-            try:
-                # first try to get `function` from the context
-                fx = context[fx_name]
-            except KeyError:
-                # if `function` can't be bound from the context, try to use a built-in
-                fx = None
-                for mod in ('builtins', 'math',):
-                    fx = getattr(importlib.import_module(mod), fx_name, None)
-                    if fx: break
+        if isinstance(self._function, AnonymousFunction):
+            # `_function` is an AnonymousFunction so we simply call it
+            return self._function(*(value_of(a, context) for a in self._args))
 
-            # raise an evaluation error if `name` couldn't be bound
-            if not fx:
-                raise EvaluationError("unbound function name '%s'" % fx_name)
+        try:
+            # `_function` is a symbol, we first try to bound it from the context
+            fx = value_of(self._function, context)
+        except UnboundVariableError:
+            # if `function` can't be bound from the context, try to use a built-in
+            fx = None
+            for mod in ('builtins', 'math',):
+                fx = getattr(importlib.import_module(mod), self._function, None)
+                if fx: break            
 
-        elif isinstance(self.function, AnonymousFunction):
-            # `function` is an anonymous function
-            fx = self.function
-
-        else:
+        # raise an evaluation error if `_function` couldn't be bound
+        if not fx:
+            raise UnboundVariableError("unbound function name '%s'" % self._function)
+        elif not hasattr(fx, '__call__'):
             raise TypeError("invalid type '%s' for a function application" %
                             type(self.function).__name__)
 
         # apply fx
         # TODO instanciate yaffel sets as python iterable so we can call python
-        #  built-in functions than run on tierables, such as `sum`
-        return fx(*(self._value(a, context) for a in self.args))
+        # built-in functions than run on tierables, such as `sum`
+        return fx(*(value_of(a, context) for a in self._args))
 
     def __hash__(self):
-        return hash(self.function, tuple(self.args))
+        return hash(tuple([hash(self.function)] + self.args))
 
     def __eq__(self, other):
-        try:
-            compare_seq = lambda x,y: all(x[i] == y[i] for i in range(max(len(x), len(y))))
-            return (self.function, other.function) and compare_seq(self.args, other.args)
-        except:
-            return False
+        f = lambda x,y: all(a == b for a,b in zip_longest(x,y))
+        return (self._function == other._function) and f(self._args, other._args)
 
     def __str__(self):
-        return '%s(%s)' % (self.function, ', '.join(map(str, self.args)))
+        return '%s(%s)' % (self._function, ', '.join(map(str, self._args)))
+
+    def __repr__(self):
+        return '%s(%s)' % (self.__class__, str(self))
 
 class Set(object):
     """Symbolic representation of a set.
