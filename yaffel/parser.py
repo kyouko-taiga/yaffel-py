@@ -76,15 +76,16 @@ def parse(seq):
         # if not any(isinstance(t, Token) or hasattr(t, '__call__') for t in terms):
         #     return eval_cst_expr(head, tail)
 
-        # don't create an additional function if 'head' is the only term and is already callable
+        # don't create an additional function if 'head' is the only term and is
+        # already callable
         if not tail and hasattr(head, '__call__'):
             return head
 
         # return a function that will take unbound variables as parameters
         return Expression([head] + tail)
 
-    def make_binding(t):
-        return (t[0], t[1])
+    def make_binding(name, value):
+        return (name, value)
 
     def make_context(head, tail):
         context = {head[0]: head[1]}
@@ -102,22 +103,22 @@ def parse(seq):
         # return the empty set
         return Enumeration()
 
-    def make_range(x):
-        return Range(x[0],x[1])
+    def make_range(lower, upper):
+        return Range(lower, upper)
 
-    def make_set(x):
-        return Set(*x)
+    def make_set(function, context):
+        return Set(function, context)
 
     def make_tuple(x):
         if x is not None:
             return tuple([x[0]] + [e for e in x[1]])
         return tuple()
 
-    def make_application(x):
-        return Application(x[0], x[1])
+    def make_application(function, args):
+        return Application(function, args)
 
     def make_function(x):
-        args = [t for t in [x[0]] + [a for a in x[1]]]
+        args = [x[0]] + x[1]
         expr = x[2]
         return AnonymousFunction(args, expr)
 
@@ -153,23 +154,23 @@ def parse(seq):
 
     fx_anon     = kw_('f') + maybe(name + many(op_(',') + name)) + op_(':') + expr >> make_function
 
-    binding     = with_forward_decls(lambda: name + op_('=') + evaluation >> (make_binding))
+    binding     = with_forward_decls(lambda: name + op_('=') + evaluation >> uncurry(make_binding))
     context     = binding + many(op_(',') + binding) >> uncurry(make_context)
 
     evaluable   = expr + maybe(kw_('for') + context) >> eval_expr
     evaluation  = (fx_anon | evaluable) | (op_('(') + (fx_anon | evaluable) + op_(')'))
 
     enumeration = op_('{') + maybe(expr + many(op_(',') + expr)) + op_('}') >> make_enum
-    range_      = op_('{') + expr + op_(':') + expr  + op_('}') >> make_range
+    range_      = op_('{') + expr + op_(':') + expr  + op_('}') >> uncurry(make_range)
     set_        = with_forward_decls(lambda:
-                    op_('{') + expr + maybe(kw_('for') + set_context) + op_('}') >> make_set)
+                    op_('{') + expr + maybe(kw_('for') + set_context) + op_('}')>>uncurry(make_set))
     set_expr    = (enumeration | range_ | set_)
 
-    set_binding = name + op_('in') + set_expr >> make_binding
+    set_binding = name + op_('in') + set_expr >> uncurry(make_binding)
     set_context = set_binding + many(op_(',') + set_binding) >> uncurry(make_context)
 
     tuple_      = op_('(') + maybe(expr + many(op_(',') + expr)) + op_(')') >> make_tuple
-    fx_app      = (op_('(') + fx_anon + op_(')') | name) + tuple_ >> make_application
+    fx_app      = (op_('(') + fx_anon + op_(')') | name) + tuple_ >> uncurry(make_application)
 
     yaffel      = evaluable + skip(finished)
     # yaffel      = fx_anon
