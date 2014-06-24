@@ -55,8 +55,8 @@ def parse(seq):
         except ValueError:
             return float(t)
 
-    def eval_cst_expr(head, tail):
-        return reduce(lambda s, p: p[0](s, p[1]), tail, head)
+    def make_name(t):
+        return Name(t)
 
     def eval_expr(x):
         if hasattr(x[0], '__call__'):
@@ -84,7 +84,7 @@ def parse(seq):
         return Expression([head] + tail)
 
     def make_binding(t):
-        return (token_value(t[0]), t[1])
+        return (t[0], t[1])
 
     def make_context(head, tail):
         context = {head[0]: head[1]}
@@ -117,7 +117,7 @@ def parse(seq):
         return Application(x[0], x[1])
 
     def make_function(x):
-        args = [token_value(t) for t in [x[0]] + [a for a in x[1]]]
+        args = [t for t in [x[0]] + [a for a in x[1]]]
         expr = x[2]
         return AnonymousFunction(args, expr)
 
@@ -136,7 +136,7 @@ def parse(seq):
     and_        = op('and') >> const(operator.and_)
     or_         = op('or') >> const(operator.or_)
 
-    name        = token_type('name')
+    name        = token_type('name') >> token_value >> make_name
     number      = token_type('number') >> token_value >> make_number
     string      = token_type('string') >> token_value
 
@@ -169,7 +169,7 @@ def parse(seq):
     set_context = set_binding + many(op_(',') + set_binding) >> uncurry(make_context)
 
     tuple_      = op_('(') + maybe(expr + many(op_(',') + expr)) + op_(')') >> make_tuple
-    fx_app      = (op_('(') + fx_anon + op_(')') | name >> token_value) + tuple_ >> make_application
+    fx_app      = (op_('(') + fx_anon + op_(')') | name) + tuple_ >> make_application
 
     yaffel      = evaluable + skip(finished)
     # yaffel      = fx_anon

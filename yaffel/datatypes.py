@@ -21,18 +21,26 @@ from yaffel.exceptions import UnboundVariableError, InvalidExpressionError
 
 import numbers, importlib
 
-__all__ = ['Expression', 'AnonymousFunction', 'Application', 'Set', 'Enumeration', 'Range']
+__all__ = ['Name', 'Expression', 'AnonymousFunction', 'Application', 'Set', 'Enumeration', 'Range']
 
 def value_of(variable, context):
     if isinstance(variable, Expression):
         # `variable` is an instance of Expression, we simply evaluate it
         return variable(**context)
+    elif isinstance(variable, Name):
+        try:
+            # we try to bound `variable` from the `context`
+            return context[variable]
+        except KeyError:
+            raise UnboundVariableError("unbound variable '%s'" % variable) from None
 
-    try:
-        # we try to bound `variable` from the `context`
-        return context[variable]
-    except KeyError:
-        raise UnboundVariableError("unbound variable '%s'" % variable) from None
+    # `variable` is not symbolic
+    return variable
+
+class Name(str):
+    """Represents a symbolic name in expressions or contexts."""
+    def __new__(cls, c_str):
+        return str.__new__(cls, c_str)
 
 class Expression(object):
     """Represents an expression as an anonymous function.
@@ -58,7 +66,7 @@ class Expression(object):
         """
         try:
             # retrieve the first term value
-            a = self._value(self._unfolded_expr[0], context)
+            a = value_of(self._unfolded_expr[0], context)
         except TypeError:
             # `_unfolded_expr` is either [] or not iterable
             raise InvalidExpressionError("'%s' is not a valid expression" %
@@ -66,19 +74,8 @@ class Expression(object):
 
         # evaluate expression
         for f,b in self._unfolded_expr[1:]:
-            a = f(a, self._value(b, context))
+            a = f(a, value_of(b, context))
         return a
-
-    def _value(self, term, context):
-        if isinstance(term, Token):
-            try:
-                return context[term.value]
-            except KeyError:
-                raise UnboundVariableError("unbound variable '%s'" % term.value) from None
-        elif hasattr(term, '__call__'):
-            return term(**context)
-        else:
-            return term
 
     def _unfolded_expr_str(self):
         if not self._unfolded_expr: return ''
