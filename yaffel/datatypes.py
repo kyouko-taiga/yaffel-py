@@ -21,7 +21,8 @@ from yaffel.exceptions import UnboundValueError, InvalidExpressionError
 
 import numbers, importlib
 
-__all__ = ['Name', 'Expression', 'AnonymousFunction', 'Application', 'Set', 'Enumeration', 'Range']
+__all__ = ['Name', 'Expression', 'ConditionalExpression', 'AnonymousFunction', 'Application',
+           'Set', 'Enumeration', 'Range']
 
 def value_of(variable, context):
     if isinstance(variable, Expression):
@@ -106,6 +107,27 @@ class Expression(object):
 
     def __repr__(self):
         return '%s(%s)' % (self.__class__, str(self))
+
+class ConditionalExpression(Expression):
+
+    def __init__(self, expr, condition, else_expr):
+        self._condition = condition
+        self._else_expr = else_expr
+        super().__init__(expr._unfolded_expr)
+
+    def __call__(self, **context):
+        if bool(self._condition(**context)):
+            return super().__call__(**context)
+        elif self._else_expr is not None:
+            return self._else_expr(**context)
+        raise UnboundValueError("conditional expression '%s' has no else expression" % str(self))
+
+    def __str__(self):
+        return '%(expr)s if %(cond)s else %(else)s' % {
+            'expr': self._unfolded_expr_str(),
+            'cond': self._condition._unfolded_expr_str(),
+            'else': self._else_expr._unfolded_expr_str() if self._else_expr else 'None',
+        }
 
 class AnonymousFunction(Expression):
 
