@@ -34,7 +34,7 @@ def tokenize(s):
         ('space',    (r'[ \t\r\n]+',)),
         ('number',   (r'-?(0|([1-9][0-9]*))(\.[0-9]+)?([Ee][+-][0-9]+)?',)),
         ('string',   (r'"[^"]*"',)),                                # unsupported escaped quotes
-        ('operator', (r'(\*\*)|([><=!]=)|(and)|(or)|(in)|[{}\[\]\(\)\-\+\*/=><\.,:]',)),
+        ('operator', (r'(\*\*)|([><=!]=)|(and)|(or)|(not)|(in)|[{}\[\]\(\)\-\+\*/=><\.,:]',)),
         ('name',     (r'[A-Za-z_][A-Za-z_0-9]*',)),
     ]
 
@@ -90,6 +90,11 @@ def make_expression(head, tail):
 
     # return a function that will take unbound variables as parameters
     return Expression([head] + tail)
+
+def make_bool_expression(unary, head, tail):
+    if unary is not None:
+        head = Application(unary, (head,))
+    return make_expression(head, tail)
 
 def make_conditional_expression(expr, branch):
     if branch is None:
@@ -155,6 +160,8 @@ power       = op('**') >> const(operator.pow)
 
 and_        = op('and') >> logical_and
 or_         = op('or') >> logical_or
+not_        = op('not') >> const(operator.not_)
+
 lt          = op('<') >> const(operator.lt)
 le          = op('<=') >> const(operator.le)
 eq          = op('==') >> const(operator.eq)
@@ -179,8 +186,9 @@ atom        = with_forward_decls(lambda:
 factor      = atom + many(power + atom) >> uncurry(make_expression)
 term        = factor + many(mul_op + factor) >> uncurry(make_expression)
 axiom       = term + many(add_op + term) >> uncurry(make_expression)
-bexpr       = axiom + many(logic_op + axiom) >> uncurry(make_expression)
-uexpr       = bexpr + many(add_op + bexpr) >> uncurry(make_expression)
+
+lexpr       = maybe(not_) + axiom + many(logic_op + axiom) >> uncurry(make_bool_expression)
+uexpr       = lexpr + many(add_op + lexpr) >> uncurry(make_expression)
 expr        = uexpr + maybe(kw_('if') + uexpr + maybe(kw_('else') + uexpr)) \
                 >> uncurry(make_conditional_expression)
 
