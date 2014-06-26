@@ -17,7 +17,7 @@
 
 from funcparserlib.lexer import Token
 from itertools import zip_longest
-from yaffel.exceptions import UnboundVariableError, InvalidExpressionError
+from yaffel.exceptions import UnboundValueError, InvalidExpressionError
 
 import numbers, importlib
 
@@ -32,7 +32,7 @@ def value_of(variable, context):
             # we try to bound `variable` from the `context`
             return context[variable]
         except KeyError:
-            raise UnboundVariableError("unbound variable '%s'" % variable) from None
+            raise UnboundValueError("unbound variable '%s'" % variable) from None
 
     # `variable` is not symbolic
     return variable
@@ -147,7 +147,7 @@ class Application(object):
         try:
             # `_function` is a symbol, we first try to bound it from the context
             fx = value_of(self._function, context)
-        except UnboundVariableError:
+        except UnboundValueError:
             # if `function` can't be bound from the context, try to use a built-in
             fx = None
             for mod in ('builtins', 'math',):
@@ -156,7 +156,7 @@ class Application(object):
 
         # raise an evaluation error if `_function` couldn't be bound
         if not fx:
-            raise UnboundVariableError("unbound function name '%s'" % self._function)
+            raise UnboundValueError("unbound function name '%s'" % self._function)
         elif not hasattr(fx, '__call__'):
             raise TypeError("invalid type '%s' for a function application" %
                             type(self.function).__name__)

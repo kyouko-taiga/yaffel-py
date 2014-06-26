@@ -15,13 +15,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ['EvaluationError', 'UnboundVariableError', 'InvalidExpressionError']
+__all__ = ['EvaluationError', 'UnboundValueError', 'InvalidExpressionError']
 
 class EvaluationError(Exception):
     def __init__(self, message):
         Exception.__init__(self, message)
 
-class UnboundVariableError(EvaluationError):
+class UnboundValueError(EvaluationError):
     def __init__(self, message):
         super().__init__(message)
 
