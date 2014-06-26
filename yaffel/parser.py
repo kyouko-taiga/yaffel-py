@@ -141,8 +141,13 @@ def make_application(function, args):
     return Application(function, args)
 
 def make_function(x):
-    args = [x[0]] + x[1]
-    expr = x[2]
+    if x[0] is not None:
+        args = [x[0]] + x[1]
+        expr = x[2]
+    else:
+        args = []
+        expr = x[1]
+
     return AnonymousFunction(args, expr)
 
 # primitives
