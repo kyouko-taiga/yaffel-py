@@ -67,12 +67,14 @@ class TestParser(unittest.TestCase):
         self.assertRaises(EvaluationError, parse, 'x + y for x = 1')
 
     def test_enumeration_expression(self):
-        self.assertEqual(parse('{}'), (Enumeration, Enumeration()))
-        self.assertEqual(parse('{1}'), (Enumeration, Enumeration(1)))
-        self.assertEqual(parse('{1,2}'), (Enumeration, Enumeration(1,2)))
+        self.assertEqual(parse('{}'), (Enumeration, Enumeration([])))
+        self.assertEqual(parse('{1}'), (Enumeration, Enumeration([1])))
+        self.assertEqual(parse('{1,2}'), (Enumeration, Enumeration([1,2])))
 
-        # self.assertEqual(parse('{x} for x = 1'), (Enumeration, Enumeration(1)))
-        # ...
+        self.assertEqual(parse('{x} for x = 1'), (Enumeration, Enumeration([1])))
+        self.assertEqual(parse('{1,x} for x = 1'), (Enumeration, Enumeration([1])))
+        self.assertEqual(parse('{x+1} for x = 1'), (Enumeration, Enumeration([2])))
+        self.assertEqual(parse('{{}}'), (Enumeration, Enumeration([Enumeration([])])))
 
     def test_range_expression(self):
         self.assertEqual(parse('{0:10}'), (Range, Range(0,10)))

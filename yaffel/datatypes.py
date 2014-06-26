@@ -207,11 +207,14 @@ class Set(object):
 class Enumeration(Set):
     """Kind of set that simply enumerates values."""
 
-    def __init__(self, *elements):
-        self.elements = set(elements)
+    def __init__(self, elements):
+        self.elements = frozenset(elements)
 
     def __call__(self, **context):
-        return Enumeration(*{e(**context) for e in self.elements})
+        return Enumeration(e(**context) for e in self.elements)
+
+    def __hash__(self):
+        return hash(self.elements)
 
     def __eq__(self, other):
         return self.elements == other.elements
