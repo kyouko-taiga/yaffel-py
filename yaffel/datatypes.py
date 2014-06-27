@@ -25,7 +25,7 @@ __all__ = ['Name', 'Expression', 'ConditionalExpression', 'AnonymousFunction', '
            'Set', 'Enumeration', 'Range']
 
 def value_of(variable, context):
-    if isinstance(variable, Expression):
+    if hasattr(variable, '__call__'):
         # `variable` is an instance of Expression, we simply evaluate it
         return variable(**context)
     elif isinstance(variable, Name):
@@ -133,7 +133,10 @@ class AnonymousFunction(Expression):
 
     def __init__(self, args, expr):
         self._args = args
-        super().__init__(expr._unfolded_expr)
+        if isinstance(expr, Expression):
+            super().__init__(expr._unfolded_expr)
+        else:
+            super().__init__(Expression([expr])._unfolded_expr)
 
     def __call__(self, *argv) :
         if len(argv) != len(self._args):
