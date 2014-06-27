@@ -110,8 +110,8 @@ class Expression(object):
 
 class ConditionalExpression(Expression):
 
-    def __init__(self, expr, condition, else_expr):
-        self._condition = condition
+    def __init__(self, expr, condition=None, else_expr=None):
+        self._condition = condition or Expression([True])
         self._else_expr = else_expr
         super().__init__(expr._unfolded_expr)
 
@@ -129,20 +129,25 @@ class ConditionalExpression(Expression):
             'else': self._else_expr._unfolded_expr_str() if self._else_expr else 'None',
         }
 
-class AnonymousFunction(Expression):
+class AnonymousFunction(ConditionalExpression):
 
     def __init__(self, args, expr):
         self._args = args
-        if isinstance(expr, Expression):
-            super().__init__(expr._unfolded_expr)
+        if isinstance(expr, ConditionalExpression):
+            # build the anonymous function from another conditional expression
+            super().__init__(expr, expr._condition, expr._else_expr)
+        elif isinstance(expr, Expression):
+            # build the anonymous function from an unconditional expression
+            super().__init__(expr)
         else:
-            super().__init__(Expression([expr])._unfolded_expr)
+            # build the anonymous function from an axiom (e.g. built-in function)
+            super().__init__(Expression([expr]))
 
-    def __call__(self, *argv) :
+    def __call__(self, *argv, **context):
         if len(argv) != len(self._args):
             raise TypeError("%s takes %i arguments but %i were given" %
                             (self, len(self._args), len(argv)))
-        context = {self._args[i]: argv[i] for i in range(len(self._args))}
+        context.update({self._args[i]: argv[i] for i in range(len(self._args))})
         return super().__call__(**context)
 
     def __hash__(self):
@@ -189,6 +194,8 @@ class Application(object):
         # apply fx
         # TODO instanciate yaffel sets as python iterable so we can call python
         # built-in functions than run on tierables, such as `sum`
+        if isinstance(fx, AnonymousFunction):
+            return fx(*(value_of(a, context) for a in self._args), **context)
         return fx(*(value_of(a, context) for a in self._args))
 
     def __hash__(self):
