@@ -189,7 +189,7 @@ class Application(object):
             raise UnboundValueError("unbound function name '%s'" % self._function)
         elif not hasattr(fx, '__call__'):
             raise TypeError("invalid type '%s' for a function application" %
-                            type(self.function).__name__)
+                            type(self._function).__name__)
 
         # apply fx
         # TODO instanciate yaffel sets as python iterable so we can call python
