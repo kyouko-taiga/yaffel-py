@@ -109,11 +109,21 @@ class Expression(object):
         return '%s(%s)' % (self.__class__, str(self))
 
 class ConditionalExpression(Expression):
+    """Represents a conditional expression.
+
+    Conditional expressions are of the form "x if p else y" whose evaluation
+    will be that of x if p is true, else that of y. x,y and p are expressions
+    themselves, even possibly conditional expressions; p must evaluate to a
+    boolean.
+    """
 
     def __init__(self, expr, condition=None, else_expr=None):
         self._condition = condition or Expression([True])
         self._else_expr = else_expr
-        super().__init__(expr._unfolded_expr)
+        if isinstance(expr, Expression):
+            super().__init__(expr._unfolded_expr)
+        else:
+            super().__init__(Expression([expr]))
 
     def __call__(self, **context):
         if bool(self._condition(**context)):
@@ -130,6 +140,11 @@ class ConditionalExpression(Expression):
         }
 
 class AnonymousFunction(ConditionalExpression):
+    """Represents an anonymous function.
+
+    An anonymous function allows an expression to be seen as a first-class
+    citizen, and thus can be bound to a name to define recursive expressions.
+    """
 
     def __init__(self, args, expr):
         self._args = args
@@ -164,6 +179,17 @@ class AnonymousFunction(ConditionalExpression):
         }
 
 class Application(object):
+    """Represents the application of a function.
+
+    A function application is a tuple <f,A> with f a function and A a list of
+    arguments. When the application is evaluated, the function f is bound to an
+    expression or a built-in function, representing its semantic. If f is bound
+    to a yaffel expression, arguments may remain unbound until their evaluation
+    is actually required; however, if f is bound to a built-in function, its
+    arguments might be evaluated before f is actually called. This might happen
+    because some built-in functions are pure python and doesn't support late
+    binding.
+    """
 
     def __init__(self, function, args):
         self._function = function
