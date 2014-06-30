@@ -25,12 +25,15 @@ __all__ = ['Name', 'Expression', 'ConditionalExpression', 'AnonymousFunction', '
            'Set', 'Enumeration', 'Range']
 
 def value_of(variable, context):
-    if hasattr(variable, '__call__'):
+    #if hasattr(variable, '__call__'):
+    if isinstance(variable, Expression):
         # `variable` is an instance of Expression, we simply evaluate it
         return variable(**context)
     elif isinstance(variable, Name):
         try:
             # we try to bound `variable` from the `context`
+            return context[variable](**context)
+        except TypeError:
             return context[variable]
         except KeyError:
             raise UnboundValueError("unbound variable '%s'" % variable) from None
@@ -77,6 +80,24 @@ class Expression(object):
         for f,b in self._unfolded_expr[1:]:
             a = f(a, value_of(b, context))
         return a
+
+    def rename_variable(self, context):
+        a = self._unfolded_expr[0]
+        if isinstance(a, Name):
+            # `a` is a name and we want to rename it if it exists in the `context`
+            self._unfolded_expr[0] = context.get(a,a)
+        elif isinstance(a, Expression):
+            # `a` is an expression so we delegate the renaming to it
+            a.rename_variable(context)
+
+        for i in range(1, len(self._unfolded_expr)):
+            f,b = self._unfolded_expr[i]
+            if isinstance(b, Name):
+                # `b` is a name and we want to rename it if it exists in the `context`
+                self._unfolded_expr[i] = (f, context.get(b,b))
+            elif isinstance(b, Expression):
+                # `b` is an expression so we delegate the renaming to it
+                b.rename_variable(context)
 
     def _unfolded_expr_str(self):
         if not self._unfolded_expr: return ''
@@ -165,6 +186,10 @@ class AnonymousFunction(ConditionalExpression):
         context.update({self._args[i]: argv[i] for i in range(len(self._args))})
         return super().__call__(**context)
 
+    def rename_variable(self, context):
+        # don't rename variables that needs to be bound in function arguments
+        super().__init__({n:v for n,v in context.items() if n not in self._args})
+
     def __hash__(self):
         return hash(tuple(self._args + [super().__hash__()]))
 
@@ -173,8 +198,8 @@ class AnonymousFunction(ConditionalExpression):
         return f(self._args, other._args) and f(self._unfolded_expr, other._unfolded_expr)
 
     def __str__(self):
-        return '%(args)s: %(expr)s' % {
-            'args': 'f ' + ', '.join(self._args),
+        return '[%(args)s: %(expr)s]' % {
+            'args': ', '.join(self._args),
             'expr': self._unfolded_expr_str()
         }
 

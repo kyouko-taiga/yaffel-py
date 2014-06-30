@@ -87,7 +87,7 @@ class TestParser(unittest.TestCase):
 
         self.assertRaises(TypeError, parse, '{1:0}')
         self.assertRaises(TypeError, parse, '{1:1}')
-        self.assertRaises(TypeError, parse, '{1:{1:2}}')
+        self.assertRaises(SyntaxError, parse, '{1:{1:2}}')
 
     def test_set_expression(self):
         t, s = parse('{x for x in {}}')

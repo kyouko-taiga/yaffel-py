@@ -16,8 +16,8 @@
 # limitations under the License.
 
 from collections import namedtuple
-from funcparserlib.lexer import make_tokenizer, Token, LexerError
-from funcparserlib.parser import some, a, many, maybe, finished, skip, with_forward_decls
+from funcparserlib.lexer import make_tokenizer, Token
+from funcparserlib.parser import some, a, many, maybe, finished, skip, forward_decl, NoParseError
 from functools import reduce
 
 from yaffel.datatypes import *
@@ -43,7 +43,7 @@ def tokenize(s):
 
 # auxiliary helper functions
 const       = lambda x: lambda _: x
-uncurry     = lambda f: lambda x: f(*x)
+u           = lambda f: lambda x: f(*x)
 token_value = lambda t: t.value
 token_type  = lambda t: some(lambda x: x.type == t)
 
@@ -91,12 +91,16 @@ def make_expression(head, tail):
     # return a function that will take unbound variables as parameters
     return Expression([head] + tail)
 
-def make_bool_expression(unary, head, tail):
-    if unary is not None:
-        head = Application(unary, (head,))
-    return make_expression(head, tail)
+def make_renaming(expr, context):
+    if context:
+        expr.rename_variable(context)
+    return expr
 
-def make_conditional_expression(expr, branch):
+def make_boolean(x):
+    e = Application(x[0], (x[1],)) if x[0] else x[1]
+    return make_expression(e, [])
+
+def make_conditional(expr, branch):
     if branch is None:
         return expr
 
@@ -134,13 +138,10 @@ def make_tuple(x):
         return tuple([x[0]] + [e for e in x[1]])
     return tuple()
 
-def make_assert(x):
-    return x
-
 def make_application(function, args):
     return Application(function, args)
 
-def make_function(x):
+def make_lambda(x):
     if x[0] is not None:
         args = [x[0]] + x[1]
         expr = x[2]
@@ -184,45 +185,68 @@ string      = token_type('string') >> token_value
 # grammar rules
 mul_op      = mul | div
 add_op      = add | sub
-logic_op    = or_ | and_ | lt | le | eq | ne | ge | gt
+cmp_op      = lt | le | eq | ne | ge | gt
 
-atom        = with_forward_decls(lambda:
-                number | fx_app | set_expr | true | false | name | (op_('(') + expr + op_(')')))
-factor      = atom + many(power + atom) >> uncurry(make_expression)
-term        = factor + many(mul_op + factor) >> uncurry(make_expression)
-axiom       = term + many(add_op + term) >> uncurry(make_expression)
+# forward declatations
+nexpr       = forward_decl()
+bexpr       = forward_decl()
+sexpr       = forward_decl()
+expr        = forward_decl()
 
-lexpr       = maybe(not_) + axiom + many(logic_op + axiom) >> uncurry(make_bool_expression)
-uexpr       = lexpr + many(add_op + lexpr) >> uncurry(make_expression)
-expr        = uexpr + maybe(kw_('if') + uexpr + maybe(kw_('else') + uexpr)) \
-                >> uncurry(make_conditional_expression)
+renaming    = forward_decl()
+set_context = forward_decl()
 
-fx_anon     = kw_('f') + maybe(name + many(op_(',') + name)) + op_(':') + expr >> make_function
+# numerical expression
+numeric     = number | name | (op_('(') + nexpr + op_(')'))
+factor      = numeric + many(power + numeric) >> u(make_expression)
+term        = factor + many(mul_op + factor) >> u(make_expression)
+nexpr.define( term + many(add_op + term) >> u(make_expression) )
 
-binding     = with_forward_decls(lambda: name + op_('=') + evaluation >> uncurry(make_binding))
-context     = binding + many(op_(',') + binding) >> uncurry(make_context)
+# boolean expression
+pred        = nexpr + cmp_op + nexpr >> u(make_expression)
+formula     = true | false | pred | nexpr | (op_('(') + bexpr + op_(')'))
+conjuction  = formula + many(and_ + formula) >> u(make_expression)
+disjunction = conjuction + many(or_ + conjuction) >> u(make_expression)
+bexpr.define( maybe(not_) + disjunction >> make_boolean )
 
-evaluable   = expr + maybe(kw_('for') + context) >> eval_expr
-evaluation  = (fx_anon | evaluable) | (op_('(') + (fx_anon | evaluable) + op_(')'))
-
+# set expression
 enumeration = op_('{') + maybe(expr + many(op_(',') + expr)) + op_('}') >> make_enum
-range_      = op_('{') + expr + op_(':') + expr  + op_('}') >> uncurry(make_range)
-set_        = with_forward_decls(lambda:
-                op_('{') + expr + maybe(kw_('for') + set_context) + op_('}') >> uncurry(make_set))
-set_expr    = (enumeration | range_ | set_)
+range_      = op_('{') + nexpr + op_(':') + nexpr  + op_('}') >> u(make_range)
+set_        = op_('{') + expr + maybe(kw_('for') + set_context) + op_('}') >> u(make_set)
+sexpr.define( enumeration | range_ | set_ )
 
-set_binding = name + op_('in') + set_expr >> uncurry(make_binding)
-set_context = set_binding + many(op_(',') + set_binding) >> uncurry(make_context)
+# anonymous function
+lambda_     = op_('[') + maybe(name + many(op_(',') + name)) + op_(':') + expr + op_(']') \
+              >> make_lambda
 
+# function application
 tuple_      = op_('(') + maybe(expr + many(op_(',') + expr)) + op_(')') >> make_tuple
-fx_app      = (op_('(') + fx_anon + op_(')') | name) + tuple_ >> uncurry(make_application)
+application = (lambda_ | name) + tuple_ >> u(make_application)
 
-yaffel      = evaluable + skip(finished)
-#yaffel      = assertion
+# conditional expression
+uexpr       = sexpr | bexpr | nexpr
+cexpr       = uexpr + kw_('if') + bexpr + maybe(kw_('else') + uexpr) >> u(make_conditional)
+
+# expression context
+binding     = name + op_('=') + (renaming | op_('(') + renaming + op_(')')) >> u(make_binding)
+context     = binding + many(op_(',') + binding) >> u(make_context)
+renaming.define( expr + maybe(kw_('for') + context) >> u(make_renaming) )
+
+# set expression context
+set_binding = name + op_('in') + sexpr >> u(make_binding)
+set_context.define( set_binding + many(op_(',') + set_binding) >> u(make_context) )
+
+# any expression
+expr.define( (uexpr | cexpr) )
+yaffel = expr + maybe(kw_('for') + context) + skip(finished) >> eval_expr
 
 def parse(seq):
-    # tokenize and parse the given sequence
-    parsed = yaffel.parse(tokenize(seq))
+    try:
+        # tokenize and parse the given sequence
+        parsed = yaffel.parse(tokenize(seq))
+    except NoParseError as e:
+        raise SyntaxError(e.msg)
+
     return (type(parsed), parsed)
 
 if __name__ == '__main__':
