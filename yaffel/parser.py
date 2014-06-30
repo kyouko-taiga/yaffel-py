@@ -96,16 +96,16 @@ def make_renaming(expr, context):
         expr.rename_variable(context)
     return expr
 
+def make_predicate(head, tail):
+    if tail is None:
+        return head
+    return make_expression(head, [tail])
+
 def make_boolean(x):
     e = Application(x[0], (x[1],)) if x[0] else x[1]
     return make_expression(e, [])
 
-def make_conditional(expr, branch):
-    if branch is None:
-        return expr
-
-    condition = branch[0]
-    else_expr = branch[1]
+def make_conditional(expr, condition, else_expr):
     return ConditionalExpression(expr, condition, else_expr)
 
 def make_binding(name, value):
@@ -204,8 +204,8 @@ term        = factor + many(mul_op + factor) >> u(make_expression)
 nexpr.define( term + many(add_op + term) >> u(make_expression) )
 
 # boolean expression
-pred        = nexpr + cmp_op + nexpr >> u(make_expression)
-formula     = true | false | pred | nexpr | (op_('(') + bexpr + op_(')'))
+pred        = nexpr + maybe(cmp_op + nexpr) >> u(make_predicate)
+formula     = true | false | pred | (op_('(') + bexpr + op_(')'))
 conjuction  = formula + many(and_ + formula) >> u(make_expression)
 disjunction = conjuction + many(or_ + conjuction) >> u(make_expression)
 bexpr.define( maybe(not_) + disjunction >> make_boolean )
