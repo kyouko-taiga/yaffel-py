@@ -100,19 +100,19 @@ class TestParser(unittest.TestCase):
         self.assertEqual(parse('log(8,2)'), (float, math.log(8,2)))
 
     def test_anonymous_function(self):
-        self.assertEqual(parse('(f:1)()'), (int, 1))
-        self.assertEqual(parse('(f x: x)(1)'), (int, 1))
-        self.assertEqual(parse('(f x: x + 1)(1)'), (int, 2))
-        self.assertEqual(parse('(f x, y: x + y)(1, 2)'), (int, 3))
-        self.assertEqual(parse('(f x: x + 1 if x < 5 else x)(4)'), (int, 5))
-        self.assertEqual(parse('(f x: x + 1 if x < 5 else x)(5)'), (int, 5))
+        self.assertEqual(parse('[:1]()'), (int, 1))
+        self.assertEqual(parse('[x: x](1)'), (int, 1))
+        self.assertEqual(parse('[x: x + 1](1)'), (int, 2))
+        self.assertEqual(parse('[x, y: x + y](1, 2)'), (int, 3))
+        self.assertEqual(parse('[x: x + 1 if x < 5 else x](4)'), (int, 5))
+        self.assertEqual(parse('[x: x + 1 if x < 5 else x](5)'), (int, 5))
 
-        self.assertEqual(parse('g(1) for g=f x: x'), (int, 1))
-        self.assertEqual(parse('g(y) for g=f x: x, y=2'), (int, 2))
-        self.assertEqual(parse('g(y,z) for g=f a, b: a + b, y=2, z=3'), (int, 5))
+        self.assertEqual(parse('g(1) for g=[x: x]'), (int, 1))
+        self.assertEqual(parse('g(y) for g=[x: x], y=2'), (int, 2))
+        self.assertEqual(parse('g(y,z) for g=[a, b: a + b], y=2, z=3'), (int, 5))
 
-        self.assertEqual(parse('g() for g=f:1'), (int, 1))
-        self.assertEqual(parse('g(1) for g=f x:log(x)'), (float, 0.0))
+        self.assertEqual(parse('g() for g=[:1]'), (int, 1))
+        self.assertEqual(parse('g(1) for g=[x:log(x)]'), (float, 0.0))
         
 
         self.assertRaises(EvaluationError, parse, 'g(x)')

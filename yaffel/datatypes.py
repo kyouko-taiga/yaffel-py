@@ -26,8 +26,8 @@ __all__ = ['Name', 'Expression', 'ConditionalExpression', 'AnonymousFunction', '
 
 def value_of(variable, context):
     #if hasattr(variable, '__call__'):
-    if isinstance(variable, Expression):
-        # `variable` is an instance of Expression, we simply evaluate it
+    if isinstance(variable, Expression) or isinstance(variable, Application):
+        # `variable` is either an instance of Expression or Application, we simply evaluate it
         return variable(**context)
     elif isinstance(variable, Name):
         try:

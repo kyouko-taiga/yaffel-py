@@ -193,11 +193,12 @@ bexpr       = forward_decl()
 sexpr       = forward_decl()
 expr        = forward_decl()
 
+application = forward_decl()
 renaming    = forward_decl()
 set_context = forward_decl()
 
 # numerical expression
-numeric     = number | name | (op_('(') + nexpr + op_(')'))
+numeric     = application | number | name | (op_('(') + nexpr + op_(')'))
 factor      = numeric + many(power + numeric) >> u(make_expression)
 term        = factor + many(mul_op + factor) >> u(make_expression)
 nexpr.define( term + many(add_op + term) >> u(make_expression) )
@@ -221,7 +222,7 @@ lambda_     = op_('[') + maybe(name + many(op_(',') + name)) + op_(':') + expr +
 
 # function application
 tuple_      = op_('(') + maybe(expr + many(op_(',') + expr)) + op_(')') >> make_tuple
-application = (lambda_ | name) + tuple_ >> u(make_application)
+application.define( (lambda_ | name) + tuple_ >> u(make_application) )
 
 # conditional expression
 uexpr       = sexpr | bexpr | nexpr
@@ -237,8 +238,9 @@ set_binding = name + op_('in') + sexpr >> u(make_binding)
 set_context.define( set_binding + many(op_(',') + set_binding) >> u(make_context) )
 
 # any expression
-expr.define( (uexpr | cexpr) )
+expr.define( cexpr | uexpr )
 yaffel = expr + maybe(kw_('for') + context) + skip(finished) >> eval_expr
+#yaffel = cexpr
 
 def parse(seq):
     try:
