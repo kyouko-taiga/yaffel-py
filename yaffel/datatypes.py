@@ -145,7 +145,7 @@ class ConditionalExpression(Expression):
         if isinstance(expr, Expression):
             super().__init__(expr._unfolded_expr)
         else:
-            super().__init__(Expression([expr]))
+            super().__init__([expr])
 
     def __call__(self, **context):
         if bool(self._condition(**context)):

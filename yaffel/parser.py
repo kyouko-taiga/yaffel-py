@@ -86,6 +86,7 @@ def make_expression(head, tail):
     # don't create an additional function if 'head' is the only term and is
     # already callable
     if not tail and hasattr(head, '__call__'):
+    #if not tail and isinstance(head, Expression):
         return head
 
     # return a function that will take unbound variables as parameters
