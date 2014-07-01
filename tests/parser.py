@@ -113,7 +113,10 @@ class TestParser(unittest.TestCase):
 
         self.assertEqual(parse('g() for g=[:1]'), (int, 1))
         self.assertEqual(parse('g(1) for g=[x:log(x)]'), (float, 0.0))
-        
+
+        # fixed point
+        self.assertEqual(parse('fp([x:x+1 if x < 10 else 10], 4)' +
+                               'for fp=[f,x: x if f(x)==x else fp(f, f(x))]'), (int, 10))
 
         self.assertRaises(EvaluationError, parse, 'g(x)')
         self.assertRaises(TypeError, parse, '[x, y: x](1)')
