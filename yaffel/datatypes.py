@@ -161,7 +161,7 @@ class ConditionalExpression(Expression):
             'else': self._else_expr._unfolded_expr_str() if self._else_expr else 'None',
         }
 
-class AnonymousFunction(ConditionalExpression):
+class AnonymousFunction(object):
     """Represents an anonymous function.
 
     An anonymous function allows an expression to be seen as a first-class
@@ -170,22 +170,14 @@ class AnonymousFunction(ConditionalExpression):
 
     def __init__(self, args, expr):
         self._args = args
-        if isinstance(expr, ConditionalExpression):
-            # build the anonymous function from another conditional expression
-            super().__init__(expr, expr._condition, expr._else_expr)
-        elif isinstance(expr, Expression):
-            # build the anonymous function from an unconditional expression
-            super().__init__(expr)
-        else:
-            # build the anonymous function from an axiom (e.g. built-in function)
-            super().__init__(Expression([expr]))
+        self._expr = expr
 
     def __call__(self, *argv, **context):
         if len(argv) != len(self._args):
             raise TypeError("%s takes %i arguments but %i were given" %
                             (self, len(self._args), len(argv)))
         context.update({self._args[i]: argv[i] for i in range(len(self._args))})
-        return super().__call__(**context)
+        return self._expr(**context)
 
     def rename_variable(self, context):
         # don't rename variables that needs to be bound in function arguments
@@ -201,8 +193,11 @@ class AnonymousFunction(ConditionalExpression):
     def __str__(self):
         return '[%(args)s: %(expr)s]' % {
             'args': ', '.join(self._args),
-            'expr': self._unfolded_expr_str()
+            'expr': str(self._expr)
         }
+
+    def __repr__(self):
+        return '%s(%s)' % (self.__class__, str(self))
 
 class Application(object):
     """Represents the application of a function.
