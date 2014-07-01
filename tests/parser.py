@@ -116,7 +116,7 @@ class TestParser(unittest.TestCase):
         
 
         self.assertRaises(EvaluationError, parse, 'g(x)')
-        self.assertRaises(TypeError, parse, '(f x, y: x)(1)')
+        self.assertRaises(TypeError, parse, '[x, y: x](1)')
 
 if __name__ == '__main__':
     unittest.main()
