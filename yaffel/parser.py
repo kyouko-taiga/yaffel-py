@@ -193,12 +193,13 @@ bexpr       = forward_decl()
 sexpr       = forward_decl()
 expr        = forward_decl()
 
+lambda_     = forward_decl()
 application = forward_decl()
 renaming    = forward_decl()
 set_context = forward_decl()
 
 # numerical expression
-numeric     = application | number | name | (op_('(') + nexpr + op_(')'))
+numeric     = application | lambda_ | number | name | (op_('(') + nexpr + op_(')'))
 factor      = numeric + many(power + numeric) >> u(make_expression)
 term        = factor + many(mul_op + factor) >> u(make_expression)
 nexpr.define( term + many(add_op + term) >> u(make_expression) )
@@ -217,8 +218,8 @@ set_        = op_('{') + expr + maybe(kw_('for') + set_context) + op_('}') >> u(
 sexpr.define( enumeration | range_ | set_ )
 
 # anonymous function
-lambda_     = op_('[') + maybe(name + many(op_(',') + name)) + op_(':') + expr + op_(']') \
-              >> make_lambda
+lambda_.define( op_('[') + maybe(name + many(op_(',') + name)) + op_(':') + expr + op_(']')
+                >> make_lambda )
 
 # function application
 tuple_      = op_('(') + maybe(expr + many(op_(',') + expr)) + op_(')') >> make_tuple

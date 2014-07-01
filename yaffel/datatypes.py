@@ -32,7 +32,8 @@ def value_of(variable, context):
     elif isinstance(variable, Name):
         try:
             # we try to bound `variable` from the `context`
-            return context[variable](**context)
+            binding = context[variable]
+            return binding if isinstance(binding, AnonymousFunction) else binding(**context)
         except TypeError:
             return context[variable]
         except KeyError:
@@ -233,14 +234,14 @@ class Application(object):
             fx = None
             for mod in ('builtins', 'math',):
                 fx = getattr(importlib.import_module(mod), self._function, None)
-                if fx: break            
+                if fx: break
 
         # raise an evaluation error if `_function` couldn't be bound
         if not fx:
             raise UnboundValueError("unbound function name '%s'" % self._function)
         elif not hasattr(fx, '__call__'):
             raise TypeError("invalid type '%s' for a function application" %
-                            type(self._function).__name__)
+                            type(fx).__name__)
 
         # apply fx
         # TODO instanciate yaffel sets as python iterable so we can call python
