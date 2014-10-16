@@ -208,8 +208,8 @@ nexpr.define( term + many(add_op + term) >> u(make_expression) )
 # boolean expression
 pred        = nexpr + maybe(cmp_op + nexpr) >> u(make_predicate)
 formula     = true | false | pred | (op_('(') + bexpr + op_(')'))
-conjuction  = formula + many(and_ + formula) >> u(make_expression)
-disjunction = conjuction + many(or_ + conjuction) >> u(make_expression)
+conjunction = formula + many(and_ + formula) >> u(make_expression)
+disjunction = conjunction + many(or_ + conjunction) >> u(make_expression)
 bexpr.define( maybe(not_) + disjunction >> make_boolean )
 
 # set expression
