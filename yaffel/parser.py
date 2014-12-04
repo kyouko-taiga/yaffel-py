@@ -57,6 +57,9 @@ def make_number(t):
 def make_name(t):
     return Name(t)
 
+def make_string(t):
+    return t[1:-1]
+
 def make_bool(t):
     return t == 'True'
 
@@ -76,6 +79,11 @@ def eval_expr(x):
 
     # If the expression is constant, we don't need to evaluate it.
     return x[0]
+
+def concatenate(head, tail):
+    for _,s in tail:
+        head += s
+    return head
 
 def make_expression(head, tail):
     # try to evaluate as a constant expression, if possible
@@ -181,7 +189,7 @@ false       = kw('False') >> token_value >> make_bool
 
 name        = token_type('name') >> token_value >> make_name
 number      = token_type('number') >> token_value >> make_number
-string      = token_type('string') >> token_value
+string      = token_type('string') >> token_value >> make_string
 
 # grammar rules
 mul_op      = mul | div
@@ -199,6 +207,9 @@ application = forward_decl()
 renaming    = forward_decl()
 set_context = forward_decl()
 
+# string expression
+strexpr     = string + many(add_op + string) >> u(concatenate)
+
 # numerical expression
 numeric     = application | lambda_ | number | name | (op_('(') + nexpr + op_(')'))
 factor      = numeric + many(power + numeric) >> u(make_expression)
@@ -207,7 +218,8 @@ nexpr.define( term + many(add_op + term) >> u(make_expression) )
 
 # boolean expression
 pred        = nexpr + maybe(cmp_op + nexpr) >> u(make_predicate)
-formula     = true | false | pred | (op_('(') + bexpr + op_(')'))
+strpred     = strexpr + maybe(eq + strexpr) >> u(make_predicate)
+formula     = true | false | pred | strpred | (op_('(') + bexpr + op_(')'))
 conjunction = formula + many(and_ + formula) >> u(make_expression)
 disjunction = conjunction + many(or_ + conjunction) >> u(make_expression)
 bexpr.define( maybe(not_) + disjunction >> make_boolean )
@@ -227,7 +239,7 @@ tuple_      = op_('(') + maybe(expr + many(op_(',') + expr)) + op_(')') >> make_
 application.define( (lambda_ | name) + tuple_ >> u(make_application) )
 
 # conditional expression
-uexpr       = sexpr | bexpr | nexpr
+uexpr       = sexpr | bexpr | nexpr | strexpr
 cexpr       = uexpr + kw_('if') + bexpr + maybe(kw_('else') + uexpr) >> u(make_conditional)
 
 # expression context
@@ -242,7 +254,7 @@ set_context.define( set_binding + many(op_(',') + set_binding) >> u(make_context
 # any expression
 expr.define( cexpr | uexpr )
 yaffel = expr + maybe(kw_('for') + context) + skip(finished) >> eval_expr
-#yaffel = cexpr
+#yaffel = formula
 
 def parse(seq):
     try:
