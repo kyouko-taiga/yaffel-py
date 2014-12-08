@@ -26,7 +26,7 @@ __all__ = ['Name', 'Expression', 'ConditionalExpression', 'AnonymousFunction', '
 
 def value_of(variable, context):
     #if hasattr(variable, '__call__'):
-    if isinstance(variable, Expression) or isinstance(variable, Application):
+    if any(isinstance(variable, t) for t in (Expression, Application, Set)):
         # `variable` is either an instance of Expression or Application, we simply evaluate it
         return variable(**context)
     elif isinstance(variable, Name):
@@ -298,6 +298,9 @@ class Enumeration(Set):
     def __eq__(self, other):
         return self.elements == other.elements
 
+    def __contains__(self, item):
+        return item in self.elements
+
     def __repr__(self):
         return '%s(%s)' % (self.__class__, str(self))
 
@@ -326,6 +329,11 @@ class Range(Set):
 
     def __eq__(self, other):
         return (self.lower_bound == other.lower_bound) and (self.upper_bound == other.upper_bound)
+
+    def __contains__(self, item):
+        if not isinstance(item, numbers.Real):
+            raise TypeError('cannot perform containment check on a non-numeric item')
+        return (item >= self.lower_bound) and (item <= self.upper_bound)
 
     def __repr__(self):
         return '%s(%s)' % (self.__class__, str(self))

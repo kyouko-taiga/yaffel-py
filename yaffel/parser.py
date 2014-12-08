@@ -110,6 +110,10 @@ def make_predicate(head, tail):
         return head
     return make_expression(head, [tail])
 
+def make_set_predicate(item, container):
+    # create an expression `item in container`
+    return Expression([container, (operator.contains, item)])
+
 def make_boolean(x):
     e = Application(x[0], (x[1],)) if x[0] else x[1]
     return make_expression(e, [])
@@ -217,9 +221,12 @@ term        = factor + many(mul_op + factor) >> u(make_expression)
 nexpr.define( term + many(add_op + term) >> u(make_expression) )
 
 # boolean expression
-pred        = nexpr + maybe(cmp_op + nexpr) >> u(make_predicate)
+setpred     = op_('(') + expr + op_('in') + sexpr + op_(')') >> u(make_set_predicate)
+numpred     = nexpr + maybe(cmp_op + nexpr) >> u(make_predicate)
 strpred     = strexpr + maybe(eq + strexpr) >> u(make_predicate)
-formula     = true | false | pred | strpred | (op_('(') + bexpr + op_(')'))
+
+pred        = setpred | numpred | strpred
+formula     = true | false | pred | (op_('(') + bexpr + op_(')'))
 conjunction = formula + many(and_ + formula) >> u(make_expression)
 disjunction = conjunction + many(or_ + conjunction) >> u(make_expression)
 bexpr.define( maybe(not_) + disjunction >> make_boolean )
@@ -254,7 +261,6 @@ set_context.define( set_binding + many(op_(',') + set_binding) >> u(make_context
 # any expression
 expr.define( cexpr | uexpr )
 yaffel = expr + maybe(kw_('for') + context) + skip(finished) >> eval_expr
-#yaffel = formula
 
 def parse(seq):
     try:
