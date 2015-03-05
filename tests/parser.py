@@ -46,9 +46,58 @@ class TestParser(unittest.TestCase):
         self.assertEqual(parse('(1 + 1) / 2'), (float, 1.0))
         self.assertRaises(ZeroDivisionError, parse, '(1 + 1) / 0')
 
-    def test_boolean_expression(self):
+    def test_boolean_constant(self):
         self.assertEqual(parse('True'), (bool, True))
         self.assertEqual(parse('False'), (bool, False))
+
+    def test_numeric_predicate(self):
+        self.assertEqual(parse('1 == 1'), (bool, True))
+        self.assertEqual(parse('1 == 2'), (bool, False))
+        self.assertEqual(parse('1 != 2'), (bool, True))
+        self.assertEqual(parse('1 != 1'), (bool, False))
+        self.assertEqual(parse('1 >= 1'), (bool, True))
+        self.assertEqual(parse('1 >= 2'), (bool, False))
+        self.assertEqual(parse('2 > 1'), (bool, True))
+        self.assertEqual(parse('1 > 1'), (bool, False))
+        self.assertEqual(parse('1 <= 1'), (bool, True))
+        self.assertEqual(parse('2 <= 1'), (bool, False))
+        self.assertEqual(parse('1 < 2'), (bool, True))
+        self.assertEqual(parse('1 < 1'), (bool, False))
+
+        self.assertEqual(parse('x == 1 for x = 1'), (bool, True))
+        self.assertEqual(parse('1 == x for x = 1'), (bool, True))
+        self.assertEqual(parse('x == x for x = 1'), (bool, True))
+
+    def test_string_predicate(self):
+        self.assertEqual(parse('"a" == "a"'), (bool, True))
+        self.assertEqual(parse('"a" == "b"'), (bool, False))
+        self.assertEqual(parse('"a" != "b"'), (bool, True))
+        self.assertEqual(parse('"a" != "a"'), (bool, False))
+        self.assertEqual(parse('"あ" == "あ"'), (bool, True))
+
+        self.assertEqual(parse('x == "a" for x = "a"'), (bool, True))
+        self.assertEqual(parse('"a" == x for x = "a"'), (bool, True))
+        self.assertEqual(parse('x == x for x = "a"'), (bool, True))
+
+    def test_set_predicate(self):
+        self.assertEqual(parse('{2,1} == {1,2}'), (bool, True))
+        self.assertEqual(parse('{1,2} == {2,3}'), (bool, False))
+        self.assertEqual(parse('{1,2} != {2,3}'), (bool, True))
+        self.assertEqual(parse('{2,1} != {1,2}'), (bool, False))
+
+        self.assertEqual(parse('{1:2} == {1:2}'), (bool, True))
+        self.assertEqual(parse('{1:2} == {2:3}'), (bool, False))
+        self.assertEqual(parse('{1:2} != {2:3}'), (bool, True))
+        self.assertEqual(parse('{1:2} != {1:2}'), (bool, False))
+
+        self.assertEqual(parse('{x for x in {1}} == {x for x in {1}}'), (bool, True))
+        self.assertEqual(parse('{x for x in {1}} == {x for x in {2}}'), (bool, False))
+        self.assertEqual(parse('{x for x in {1}} != {x for x in {2}}'), (bool, True))
+        self.assertEqual(parse('{x for x in {1}} != {x for x in {1}}'), (bool, False))
+
+        self.assertEqual(parse('x == {1} for x = {1}'), (bool, True))
+        self.assertEqual(parse('{1} == x for x = {1}'), (bool, True))
+        self.assertEqual(parse('x == x for x = {1}'), (bool, True))
 
     def test_exponent(self):
         self.assertEqual(parse('2 ** 2'), (int, 4))
