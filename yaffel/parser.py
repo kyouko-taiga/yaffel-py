@@ -188,6 +188,9 @@ ne          = op('!=') >> const(operator.ne)
 ge          = op('>=') >> const(operator.ge)
 gt          = op('>') >> const(operator.gt)
 
+in_         = op('in') >> const(lambda x,y: x in y)
+not_in      = op('not') + op('in') >> const(lambda x,y: x not in y)
+
 true        = kw('True') >> token_value >> make_bool
 false       = kw('False') >> token_value >> make_bool
 
@@ -198,7 +201,7 @@ string      = token_type('string') >> token_value >> make_string
 # grammar rules
 mul_op      = mul | div
 add_op      = add | sub
-cmp_op      = lt | le | eq | ne | ge | gt
+cmp_op      = lt | le | eq | ne | ge | gt | in_ | not_in
 
 # forward declatations
 nexpr       = forward_decl()
@@ -221,11 +224,9 @@ term        = factor + many(mul_op + factor) >> u(make_expression)
 nexpr.define( term + many(add_op + term) >> u(make_expression) )
 
 # boolean expression
-setpred     = op_('(') + expr + op_('in') + sexpr + op_(')') >> u(make_set_predicate)
-numpred     = nexpr + maybe(cmp_op + nexpr) >> u(make_predicate)
-strpred     = strexpr + maybe(eq + strexpr) >> u(make_predicate)
+proposition = (sexpr | strexpr | nexpr)
+pred        = proposition + maybe(cmp_op + proposition) >> u(make_predicate)
 
-pred        = setpred | numpred | strpred
 formula     = true | false | pred | (op_('(') + bexpr + op_(')'))
 conjunction = formula + many(and_ + formula) >> u(make_expression)
 disjunction = conjunction + many(or_ + conjunction) >> u(make_expression)
@@ -246,7 +247,7 @@ tuple_      = op_('(') + maybe(expr + many(op_(',') + expr)) + op_(')') >> make_
 application.define( (lambda_ | name) + tuple_ >> u(make_application) )
 
 # conditional expression
-uexpr       = sexpr | bexpr | nexpr | strexpr
+uexpr       = bexpr | sexpr | nexpr | strexpr
 cexpr       = uexpr + kw_('if') + bexpr + maybe(kw_('else') + uexpr) >> u(make_conditional)
 
 # expression context
