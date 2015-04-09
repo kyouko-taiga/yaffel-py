@@ -274,6 +274,8 @@ class Set(object):
         return Set(self.function, {k: v(**context) for k,v in self.context.items()})
 
     def __eq__(self, other):
+        if not isinstance(other, Set):
+            return False
         return (self.function, other.function) and (self.context == other.context)
 
     def __repr__(self):
@@ -296,6 +298,8 @@ class Enumeration(Set):
         return hash(self.elements)
 
     def __eq__(self, other):
+        if not isinstance(other, Enumeration):
+            return False
         return self.elements == other.elements
 
     def __contains__(self, item):
@@ -328,6 +332,8 @@ class Range(Set):
         return Range(lower, upper)
 
     def __eq__(self, other):
+        if not isinstance(other, Range):
+            return False
         return (self.lower_bound == other.lower_bound) and (self.upper_bound == other.upper_bound)
 
     def __contains__(self, item):
