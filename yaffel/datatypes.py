@@ -332,7 +332,7 @@ class Range(Set):
 
     def __contains__(self, item):
         if not isinstance(item, numbers.Real):
-            raise TypeError('cannot perform containment check on a non-numeric item')
+            return False
         return (item >= self.lower_bound) and (item <= self.upper_bound)
 
     def __repr__(self):
